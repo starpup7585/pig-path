@@ -59,6 +59,12 @@
         <div id="navTurnInstruction" class="nav-turn-instruction">Turn right onto 4th Ave</div>
         <div id="navNextPreview" class="nav-next-preview hidden">Then: Merge onto highway</div>
         <div id="navLaneGuidance" class="nav-lane-guidance hidden"></div>
+        <!-- Secondary Maneuver Strip (Apple Maps "THEN" banner) -->
+        <div id="navSecondaryStep" class="nav-secondary-strip hidden">
+          <span class="sec-label">THEN</span>
+          <span class="sec-icon" id="navSecondaryIcon"></span>
+          <span class="sec-text" id="navSecondaryText"></span>
+        </div>
       </div>
       <div class="nav-actions-col">
         <button id="navMuteBtn" class="nav-icon-btn" aria-label="Mute voice directions">
@@ -77,11 +83,15 @@
     </div>
   </header>
 
-  <!-- Speed Limit Sign (US MUTCD Apple Maps style) -->
+  <!-- Speed Limit Sign (US MUTCD Apple Maps style) & Digital Speedometer -->
   <aside id="speedLimitSign" class="speed-limit-sign hidden" aria-label="Speed limit">
     <div class="speed-sign-box">
       <div class="speed-sign-title">SPEED<br>LIMIT</div>
       <div id="speedLimitNumber" class="speed-sign-number">35</div>
+    </div>
+    <div id="navSpeedometerBadge" class="nav-speedometer-badge">
+      <span class="speedometer-val" id="speedometerValue">0</span>
+      <span class="speedometer-unit">MPH</span>
     </div>
   </aside>
 
@@ -183,14 +193,14 @@
             <span class="row-text"><span class="row-title">Adventure Loop</span><span class="row-sub">Pick a time, end up back home</span></span>
             <svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <button class="list-row" data-soon="0.6.0" data-title="Fog of War">
-            <span class="row-icon" style="background:#1c1c3a"><svg viewBox="0 0 24 24"><path d="M3 19c3-7 6 1 9-5s5-7 9-9" fill="none" stroke="#ffd60a" stroke-width="2.4" stroke-linecap="round"/><circle cx="21" cy="5" r="1.6" fill="#ffd60a"/></svg></span>
+          <button class="list-row" id="btnOpenFogOfWar">
+            <span class="row-icon" style="background:#1c1c3a"><svg viewBox="0 0 24 24"><path d="M3 19c3-7 6 1 9-5s5-7 9-9" fill="none" stroke="#00f5d4" stroke-width="2.4" stroke-linecap="round"/><circle cx="21" cy="5" r="1.6" fill="#00f5d4"/></svg></span>
             <span class="row-text"><span class="row-title">Fog of War</span><span class="row-sub">Light up every road you drive</span></span>
-            <span class="badge">v0.6</span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
 
-        <p class="sheet-foot">Pig Path v<span data-version>0.5.3</span> · Oink responsibly 🐷</p>
+        <p class="sheet-foot">Pig Path v<span data-version>0.6.0</span> · Oink responsibly 🐷</p>
       </div>
 
       <!-- 2. Search Results Pane -->
@@ -281,6 +291,9 @@
             </button>
           </div>
           <div class="route-sub-badge" id="routeTrafficBadge">Fastest route with live traffic</div>
+          <div class="route-badges-bar" id="routeBadgesBar">
+            <span id="routeTwistyBadge" class="twisty-badge hidden"></span>
+          </div>
 
           <!-- Active Waypoint Stop Banner -->
           <div class="waypoint-strip hidden" id="waypointStrip">
@@ -413,12 +426,36 @@
         </div>
         <p class="group-foot" id="carGroupFoot">Calculates arrival battery % and warns if you need to charge.</p>
 
-        <h4 class="group-title">Navigation</h4>
+        <h4 class="group-title">Navigation &amp; Voice</h4>
         <div class="group">
           <div class="cell">
             <span class="cell-icon" style="background:#ff2d55"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z" fill="#fff"/><path d="M16 8.5a5 5 0 010 7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span>
-            <span class="label">Voice Directions</span>
+            <span class="label">Voice Guidance</span>
             <label class="switch"><input type="checkbox" data-setting="voice"><span></span></label>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#af52de"><svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" fill="#fff"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4m-4 0h8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <span class="label">Co-Pilot Tone</span>
+            <div class="segmented" data-setting="voicePersonality">
+              <button data-value="siri">Siri</button><button data-value="roadtrip">Roadtrip 🏎️</button><button data-value="snarky">Snarky 😼</button>
+            </div>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#ff3b30"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 7v5l3 3" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <span class="label">HUD Speedometer</span>
+            <label class="switch"><input type="checkbox" data-setting="speedometer"><span></span></label>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#ff9500"><svg viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 4.2L20.1 19H3.9L12 6.2z" fill="#fff"/></svg></span>
+            <span class="label">Over-Speed Alert</span>
+            <div class="segmented" data-setting="overSpeedAlert">
+              <button data-value="0">Off</button><button data-value="5">+5 mph</button><button data-value="10">+10 mph</button>
+            </div>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#34c759"><svg viewBox="0 0 24 24"><path d="M4 14V8a3 3 0 013-3h6M10 2l3 3-3 3" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+            <span class="label">Visual Lane Assist</span>
+            <label class="switch"><input type="checkbox" data-setting="laneAssist"><span></span></label>
           </div>
           <div class="cell">
             <span class="cell-icon" style="background:#ff9500"><svg viewBox="0 0 24 24"><text x="12" y="17.5" text-anchor="middle" font-size="16" font-weight="800" fill="#fff">$</text></svg></span>
@@ -435,7 +472,7 @@
         </div>
         <p class="group-foot">Spoken voice guidance & lane assist enabled during navigation.</p>
 
-        <h4 class="group-title">Map</h4>
+        <h4 class="group-title">Map &amp; Exploration</h4>
         <div class="group">
           <div class="cell">
             <span class="cell-icon" style="background:#007aff"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 4a8 8 0 010 16z" fill="#fff"/></svg></span>
@@ -448,6 +485,11 @@
             <span class="cell-icon" style="background:#ff3b30"><svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="20" rx="3" fill="#fff"/><circle cx="12" cy="7" r="1.8" fill="#ff3b30"/><circle cx="12" cy="12" r="1.8" fill="#ff9500"/><circle cx="12" cy="17" r="1.8" fill="#34c759"/></svg></span>
             <span class="label">Live Traffic</span>
             <label class="switch"><input type="checkbox" data-setting="traffic"><span></span></label>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#00f5d4"><svg viewBox="0 0 24 24"><path d="M3 19c3-7 6 1 9-5s5-7 9-9" fill="none" stroke="#1c1c1e" stroke-width="2.4" stroke-linecap="round"/><circle cx="21" cy="5" r="1.6" fill="#1c1c1e"/></svg></span>
+            <span class="label">Fog of War Layer</span>
+            <label class="switch"><input type="checkbox" data-setting="fogOfWar"><span></span></label>
           </div>
         </div>
         <p class="group-foot">Auto turns the map dark at sunset where you are, like Apple Maps.</p>
@@ -488,12 +530,12 @@
           <div class="cell">
             <span class="cell-icon" style="background:#ff2d55"><svg viewBox="0 0 24 24"><text x="12" y="17.5" text-anchor="middle" font-size="16">🐷</text></svg></span>
             <span class="label">Version</span>
-            <span class="value" data-version>0.5.3</span>
+            <span class="value" data-version>0.6.0</span>
           </div>
           <div class="cell">
             <span class="cell-icon" style="background:#34c759"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             <span class="label">Build</span>
-            <span class="value" data-build>Safety Alerts, Adventure Loop &amp; CarPlay Mode</span>
+            <span class="value" data-build>Fog of War, Speedometer &amp; Co-Pilot Personalities</span>
           </div>
         </div>
         <p class="group-foot center">Made for one very special driver 🐷</p>
@@ -885,6 +927,50 @@
         <button id="btnGenerateLoop" class="primary-btn" type="button">
           <span>Generate Scenic Loop 🐷</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fog of War Exploration Modal -->
+  <div class="modal modal-small" id="fogModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2>Fog of War</h2><button class="done" data-close>Done</button>
+      </header>
+      <div class="modal-body fog-modal-body">
+        <div class="fog-hero-card">
+          <div class="fog-hero-badge" id="fogRankIcon">🌲</div>
+          <div class="fog-hero-col">
+            <span class="fog-rank-title" id="fogRankTitle">Emerald City Rover</span>
+            <span class="fog-rank-sub">Washington Road Coverage</span>
+          </div>
+        </div>
+
+        <div class="fog-stats-grid">
+          <div class="fog-stat-card">
+            <span class="fog-stat-num" id="fogStatMiles">15</span>
+            <span class="fog-stat-label">Miles Driven</span>
+          </div>
+          <div class="fog-stat-card">
+            <span class="fog-stat-num" id="fogStatPct">0.4%</span>
+            <span class="fog-stat-label">Puget Sound Uncovered</span>
+          </div>
+        </div>
+
+        <div class="fog-banner">
+          <span class="fog-banner-icon">✨</span>
+          <p class="fog-banner-text">Every road you drive lights up in glowing neon on your map. Your coverage trail stays saved on this iPhone.</p>
+        </div>
+
+        <div class="fog-actions">
+          <button id="btnViewFogMap" class="primary-btn" type="button">
+            <span>View Full Coverage Map</span>
+          </button>
+          <button id="btnClearFog" class="action-btn-secondary destructive" type="button">
+            <span>Reset Exploration History</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

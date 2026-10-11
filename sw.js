@@ -20,6 +20,8 @@ const SHELL = [
   'js/navigation.js',
   'js/safety.js',
   'js/adventure.js',
+  'js/curviness.js',
+  'js/fog.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',

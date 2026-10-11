@@ -10,6 +10,7 @@ import {
   checkMountainPassOnRoute,
   playSafetyChime,
 } from './safety.js';
+import { recordFogCoordinate } from './fog.js';
 
 export class NavigationController {
   constructor({ mapController, onEnd, onArrival, onWaypointArrival, onStepChange }) {
@@ -32,6 +33,9 @@ export class NavigationController {
     this.isSimulating = false;
     this.lastCameraAlertId = null;
     this.lastSchoolAlertTime = 0;
+    this.currentSpeedLimit = 35;
+    this.currentSpeedMph = 0;
+    this.lastOverSpeedChime = 0;
 
     // UI elements
     this.bannerEl = document.getElementById('navBanner');
@@ -225,6 +229,20 @@ export class NavigationController {
         nextPreviewEl.classList.add('hidden');
       }
     }
+
+    // Secondary Maneuver Strip (Apple Maps "THEN" banner)
+    const secEl = document.getElementById('navSecondaryStep');
+    const secIconEl = document.getElementById('navSecondaryIcon');
+    const secTextEl = document.getElementById('navSecondaryText');
+    if (secEl && secIconEl && secTextEl) {
+      if (next && next.maneuver) {
+        secIconEl.innerHTML = getManeuverIconSvg(next.maneuver);
+        secTextEl.textContent = next.maneuver.instruction || next.name || '';
+        secEl.classList.remove('hidden');
+      } else {
+        secEl.classList.add('hidden');
+      }
+    }
   }
 
   renderDock() {
@@ -276,8 +294,42 @@ export class NavigationController {
       limit = 25;
     }
 
+    this.currentSpeedLimit = limit;
     const numEl = document.getElementById('speedLimitNumber');
     if (numEl) numEl.textContent = limit;
+  }
+
+  updateLiveSpeed(speedMps, coord) {
+    if (!this.isActive) return;
+    if (coord && settings.fogOfWar !== false) {
+      recordFogCoordinate(coord);
+    }
+    const speedEl = document.getElementById('speedometerValue');
+    const badgeEl = document.getElementById('navSpeedometerBadge');
+
+    let speedMph = 0;
+    if (speedMps != null && speedMps >= 0) {
+      speedMph = Math.round(speedMps * 2.23694);
+    }
+    this.currentSpeedMph = speedMph;
+
+    if (speedEl) speedEl.textContent = speedMph;
+
+    const limit = this.currentSpeedLimit || 35;
+    const overThreshold = settings.overSpeedAlert != null ? settings.overSpeedAlert : 5;
+    const isOver = overThreshold > 0 && speedMph >= limit + overThreshold;
+
+    if (badgeEl) {
+      badgeEl.classList.toggle('overspeed', isOver);
+    }
+
+    if (isOver) {
+      const now = Date.now();
+      if (now - this.lastOverSpeedChime > 35000) {
+        this.lastOverSpeedChime = now;
+        playSafetyChime('overspeed');
+      }
+    }
   }
 
   buildSiriPrompt(step, nextStep) {
@@ -311,6 +363,17 @@ export class NavigationController {
         nextInst = nextInst.charAt(0).toLowerCase() + nextInst.slice(1);
         full += `, then ${nextInst}`;
       }
+    }
+
+    const personality = settings.voicePersonality || 'siri';
+    if (personality === 'roadtrip') {
+      const intros = ['Let’s roll! ', 'Heads up! ', 'Looking good! ', 'Alright driver, '];
+      const intro = distPhrase.length > 0 ? intros[Math.floor(Math.random() * intros.length)] : '';
+      full = `${intro}${full}`;
+    } else if (personality === 'snarky') {
+      const snarks = ['Pay attention: ', 'Try not to miss this: ', 'Listen close: ', 'Ready? '];
+      const snark = distPhrase.length > 0 ? snarks[Math.floor(Math.random() * snarks.length)] : '';
+      full = `${snark}${full}`;
     }
 
     return full;
@@ -377,6 +440,10 @@ export class NavigationController {
 
       // Check safety alerts (speed cameras, active school zones)
       this.checkSafetyAlerts(curCoord);
+
+      // Record fog of war and update simulated speedometer (~38 mph)
+      const simSpeedMps = 16.2 + (idx % 4) * 0.7;
+      this.updateLiveSpeed(simSpeedMps, curCoord);
 
       // Check if we should advance step
       if (idx > 0 && idx % stepInterval === 0 && this.currentStepIndex < this.steps.length - 1) {
@@ -478,10 +545,39 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
 export function speakInstruction(text) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   try {
+    // Apple CarPlay / Lock Screen Audio Session metadata
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: text,
+        artist: 'Pig Path Navigation',
+        album: 'Turn Guidance',
+        artwork: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+        ],
+      });
+    }
+
+    // Taptic / Haptic vibration for iPhone 16 Pro
+    if ('vibrate' in navigator) {
+      navigator.vibrate([35, 50, 35]);
+    }
+
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.02;
-    utterance.pitch = 1.0;
+    
+    // Adjust cadence and pitch for co-pilot personality
+    const personality = settings.voicePersonality || 'siri';
+    if (personality === 'roadtrip') {
+      utterance.rate = 1.07;
+      utterance.pitch = 1.05;
+    } else if (personality === 'snarky') {
+      utterance.rate = 0.98;
+      utterance.pitch = 0.96;
+    } else {
+      utterance.rate = 1.02;
+      utterance.pitch = 1.0;
+    }
     utterance.volume = 1.0;
 
     const voices = cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();

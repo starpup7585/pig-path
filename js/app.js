@@ -26,6 +26,8 @@ import {
 import { NavigationController, getManeuverIconSvg } from './navigation.js';
 import { generateAdventureLoop } from './adventure.js';
 import { saveReportedHazard, getReportedHazards } from './safety.js';
+import { analyzeRouteCurviness } from './curviness.js';
+import { getFogGeoJson, getFogStats, clearFogHistory } from './fog.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -63,6 +65,9 @@ const mapCtl = new MapController('map', {
     applyTheme();
     updateLocationUI();
     updateLocationModalUI();
+    if (navCtl && navCtl.isActive && mapCtl.pos) {
+      navCtl.updateLiveSpeed(mapCtl.pos.speed, [mapCtl.pos.lng, mapCtl.pos.lat]);
+    }
   },
   onSelectRoute: (routeId) => {
     selectRouteByIndex(routeId);
@@ -83,6 +88,7 @@ function startMap() {
     document.body.classList.add('map-ready');
     mapCtl.startWatching();
     renderHazardMarkers();
+    syncFogOfWarMap();
   });
   applyTheme();
 }
@@ -196,6 +202,14 @@ onChange((keys) => {
   if (keys.includes('car')) {
     renderQuickCategories();
     toast(settings.car === 'ev' ? '⚡ EV mode: battery arrival % active' : '⛽ Gas mode: fuel arrival % active');
+  }
+  if (keys.includes('fogOfWar')) syncFogOfWarMap();
+  if (keys.includes('speedometer')) {
+    const badge = $('#navSpeedometerBadge');
+    if (badge) badge.style.display = settings.speedometer === false ? 'none' : 'flex';
+  }
+  if (keys.includes('voicePersonality')) {
+    toast(`🎙️ Co-Pilot set to ${settings.voicePersonality === 'roadtrip' ? 'Roadtrip 🏎️' : settings.voicePersonality === 'snarky' ? 'Snarky 😼' : 'Siri'} 🐷`);
   }
 });
 
@@ -494,6 +508,18 @@ function updateRouteCardUI(route) {
       : `${route.summary} · Fastest route with live traffic`;
   } else {
     $('#routeTrafficBadge').textContent = `${route.summary} · +${route.diffMins} min slower`;
+  }
+
+  // Twisty Backroad Fun Meter
+  const twistyBadge = $('#routeTwistyBadge');
+  if (twistyBadge && route.geometry?.coordinates) {
+    const curve = analyzeRouteCurviness(route.geometry.coordinates);
+    twistyBadge.className = `twisty-badge ${curve.badgeClass}`;
+    twistyBadge.innerHTML = `${curve.emoji} ${curve.score}/100 Twisty · ${curve.curveCount} curves`;
+    twistyBadge.title = curve.summary;
+    twistyBadge.classList.remove('hidden');
+  } else if (twistyBadge) {
+    twistyBadge.classList.add('hidden');
   }
 
   updateLeaveByButtonUI();
@@ -1058,6 +1084,56 @@ $('#btnStartAdventureDrive')?.addEventListener('click', () => {
   sheet.snapTo('peek');
   navCtl.start(currentRoute, selectedDestination);
   toast(`🏎️ Adventure Drive Started! Enjoy your scenic drive 🐷`, 3500);
+});
+
+// ---------- Fog of War Washington Tracker ----------
+function syncFogOfWarMap() {
+  if (!mapCtl.map) return;
+  const isEnabled = settings.fogOfWar !== false;
+  mapCtl.setFogOfWarVisible(isEnabled);
+  if (isEnabled) {
+    mapCtl.updateFogOfWarLayer(getFogGeoJson());
+  }
+}
+
+function updateFogModalUI() {
+  const stats = getFogStats();
+  const milesEl = $('#fogStatMiles');
+  const pctEl = $('#fogStatPct');
+  const titleEl = $('#fogRankTitle');
+  const iconEl = $('#fogRankIcon');
+
+  if (milesEl) milesEl.textContent = stats.miles;
+  if (pctEl) pctEl.textContent = `${stats.pctSeattle}%`;
+  if (titleEl) titleEl.textContent = stats.rank;
+  if (iconEl) iconEl.textContent = stats.badgeIcon;
+}
+
+$('#btnOpenFogOfWar')?.addEventListener('click', () => {
+  updateFogModalUI();
+  openModal('fogModal');
+});
+
+$('#btnViewFogMap')?.addEventListener('click', () => {
+  closeModal('fogModal');
+  sheet.snapTo('peek');
+  syncFogOfWarMap();
+  if (mapCtl.map) {
+    mapCtl.map.flyTo({
+      center: [-122.34, 47.61],
+      zoom: 11.2,
+      pitch: 48,
+      duration: 1600,
+    });
+  }
+  toast('✨ Fog of War: Glowing roads show where you’ve driven 🐷', 3500);
+});
+
+$('#btnClearFog')?.addEventListener('click', () => {
+  clearFogHistory();
+  syncFogOfWarMap();
+  updateFogModalUI();
+  toast('Fog of War exploration history reset 🐷');
 });
 
 // ---------- Saved Places (Home & Work) ----------

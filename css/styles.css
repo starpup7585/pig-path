@@ -2586,4 +2586,229 @@ body.carplay-active.in-navigation .speed-limit-sign {
   }
 }
 
+/* ---------- HUD Speedometer Badge ---------- */
+.nav-speedometer-badge {
+  margin-top: 6px;
+  background: rgba(28, 28, 30, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  width: 44px;
+  padding: 4px 0 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+  transition: all 0.2s ease;
+}
+.nav-speedometer-badge .speedometer-val {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+.nav-speedometer-badge .speedometer-unit {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 1px;
+}
+.nav-speedometer-badge.overspeed {
+  background: rgba(255, 59, 48, 0.95);
+  border-color: #ff3b30;
+  box-shadow: 0 0 14px rgba(255, 59, 48, 0.6);
+  animation: pulseOverspeed 1.4s infinite ease-in-out;
+}
+.nav-speedometer-badge.overspeed .speedometer-val {
+  color: #ffffff;
+}
+.nav-speedometer-badge.overspeed .speedometer-unit {
+  color: #ffffff;
+}
+@keyframes pulseOverspeed {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- Secondary Maneuver Strip (Apple Maps "THEN" banner) ---------- */
+.nav-secondary-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  max-width: fit-content;
+}
+.nav-secondary-strip.hidden {
+  display: none !important;
+}
+.nav-secondary-strip .sec-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  opacity: 0.75;
+}
+.nav-secondary-strip .sec-icon {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-secondary-strip .sec-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.nav-secondary-strip .sec-text {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 190px;
+}
+
+/* ---------- Twisty Backroad Fun Meter Badges ---------- */
+.route-badges-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.twisty-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(0, 122, 255, 0.12);
+  color: #007aff;
+  letter-spacing: 0.2px;
+}
+.twisty-badge.hidden {
+  display: none !important;
+}
+.twisty-badge.straight {
+  background: rgba(142, 142, 147, 0.15);
+  color: var(--label2);
+}
+.twisty-badge.moderate {
+  background: rgba(52, 199, 89, 0.14);
+  color: #34c759;
+}
+.twisty-badge.fun {
+  background: rgba(255, 149, 0, 0.14);
+  color: #ff9500;
+}
+.twisty-badge.hot {
+  background: rgba(255, 45, 85, 0.14);
+  color: #ff2d55;
+}
+.twisty-badge.epic {
+  background: linear-gradient(135deg, rgba(255, 59, 48, 0.2), rgba(175, 82, 222, 0.2));
+  color: #ff3b30;
+  border: 1px solid rgba(255, 59, 48, 0.3);
+}
+
+/* ---------- Fog of War Modal & Coverage UI ---------- */
+.fog-modal-body {
+  padding: 16px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.fog-hero-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, rgba(0, 245, 212, 0.16) 0%, rgba(52, 199, 89, 0.12) 100%);
+  border: 1.5px solid rgba(0, 245, 212, 0.35);
+  border-radius: 18px;
+  padding: 14px 16px;
+}
+.fog-hero-badge {
+  font-size: 32px;
+  line-height: 1;
+}
+.fog-hero-col {
+  display: flex;
+  flex-direction: column;
+}
+.fog-rank-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--label);
+}
+.fog-rank-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label2);
+  margin-top: 2px;
+}
+
+.fog-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.fog-stat-card {
+  background: var(--card);
+  border: 1.5px solid rgba(120, 120, 128, 0.15);
+  border-radius: 14px;
+  padding: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fog-stat-num {
+  font-size: 24px;
+  font-weight: 800;
+  color: #00f5d4;
+  font-variant-numeric: tabular-nums;
+}
+.fog-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--label2);
+  line-height: 1.3;
+}
+
+.fog-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--fill);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.fog-banner-icon {
+  font-size: 18px;
+  line-height: 1.2;
+}
+.fog-banner-text {
+  margin: 0;
+  font-size: 12px;
+  color: var(--label2);
+  line-height: 1.4;
+}
+
+.fog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+
 

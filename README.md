@@ -2,42 +2,35 @@
 
 A personal, Apple Maps–style navigation PWA with live traffic and an Explorer mode. Built for iPhone 16 Pro.
 
-## Current version: v0.5.3 — Safety Alerts, Adventure Loop & CarPlay Mode
-- **Speed Camera & Active School Zone Alerts**:
-  - Washington speed & red light camera detector with synthesized Apple two-tone Web Audio chimes (`587Hz` & `880Hz`).
-  - Active School Zone monitoring (20 MPH limits during school hours Mon–Fri 7:30 AM–4:30 PM) with HUD banner alert and dynamic speed limit update.
-  - Mountain Pass Advisories on route start for Snoqualmie Pass, Stevens Pass, Blewett Pass, and Chinook Pass.
-- **1-Tap Incident & Hazard Reporting**:
-  - Apple Maps incident reporting drawer (`#btnReportHazard` on driving dock) to report Speed Trap (`🚓`), Hazard (`⚠️`), Crash (`🛑`), or Road Work (`🚧`).
-  - Dropped hazard markers pulse dynamically on the map and persist across driver sessions.
-- **CarPlay Horizontal Dashboard Mode**:
-  - Dedicated landscape dashboard layout (`body.carplay-active`) designed for horizontal iPhone car mounts and CarPlay-style vehicle displays.
-  - Two-column widescreen view: left 360px turn HUD & driving dock, right 60%+ 3D map navigation.
-- **Adventure Loop Generator**:
-  - Scenic round-trip drive planner (`#btnOpenAdventureLoop` in Explorer).
-  - Time budgets (30m, 45m, 1h, 1.5h, 2h) and scenery styles (Waterfront & Views, Forest & Lakes, Foothills & Curves).
-  - Generates multi-waypoint scenic loops returning to starting location.
-- **Authentic Apple Maps iOS 18 Design & 3D Extrusions**:
-  - Floating Navigation Guidance Banner with safe clearance for the iPhone 16 Pro Dynamic Island.
-  - Floating Driving Dock with prominent red circular End button and ETA telemetry.
-  - 3D Building Extrusions with warm stone shading and ambient occlusion lighting.
-  - Natural Siri Turn Guidance prompts with Apple Siri voice selection.
-  - Apple Maps Transport Mode Tabs (Drive, Walk, Transit, Cycle), Mic Dictation, and squircle category pills.
-- **Classic Pig Accents**:
-  - Blue location puck with cute pink pig snout (`.puck-snout`) and heading cone.
-  - Emerald green calibrated ring (`.puck.is-calibrated`) when using pinned location.
-  - Glossy pink pig avatar in the search bar and pig toasts (`🐷 Oink! Maps are ready`).
-- **Precise GPS with Zero-Cache Bypass** & Calibration Suite (Home, Work, Map Center, Address Geocoding).
-- **"Add a Stop" Along Route** (EV Fast Chargers, Gas, Coffee, Food, Parking with `+X min detour`).
-- **"Leave By" Target Arrival Alarm** with Web Audio departure chimes.
-- **EV Battery Arrival % Estimator** with customizable battery / gas range.
+## Current version: v0.6.0 — Fog of War, Speedometer & Co-Pilot Personalities
+- **Fog of War Washington Coverage Tracker**:
+  - Automatically records every street, highway, and backroad you drive.
+  - Glowing neon cyan & emerald trail overlay (`#00f5d4` & `#34c759`) lights up uncovered territory on your map.
+  - Explorer modal tracks total miles driven, Puget Sound % uncovered, and driver exploration rank.
+- **HUD Speedometer & Over-Speed Warnings**:
+  - Live digital speedometer badge in the navigation HUD alongside posted US MUTCD speed limit signs.
+  - Over-speed warning threshold (+5 or +10 MPH) with pulsing amber/red indicator and gentle descending reminder chimes.
+- **Visual Lane Guidance & Secondary "THEN" Maneuver**:
+  - Multi-lane guidance board highlighting recommended active lanes vs prohibited turn lanes.
+  - Secondary maneuver strip (Apple Maps "THEN" preview) prepares you for rapid follow-up turns and highway merges.
+- **Twisty Backroad "Fun Meter"**:
+  - Route curvature engine scoring routes from 0 to 100 based on curve density and bearing variance.
+  - Displays dynamic badges (`🏎️ 78/100 Twisty · 32 curves`) on route previews and Adventure Loops.
+- **Custom Co-Pilot Voice Personalities**:
+  - Choose your navigator tone in Settings:
+    - **Siri**: Authentic calm Apple turn guidance.
+    - **Roadtrip 🏎️**: Energetic, spirited road-trip companion ("Alright driver, let's roll!").
+    - **Snarky 😼**: Witty, sarcastic navigation banter ("Listen close, try not to miss this turn.").
+- **CarPlay Standalone Audio & iPhone Haptics**:
+  - Integrates `navigator.mediaSession` to broadcast real-time maneuver titles to CarPlay and iOS lock screens.
+  - Taptic engine pulses on iPhone 16 Pro as you approach turns and highway exits.
 
 ## Roadmap
 | Version | Features |
 |---|---|
-| v0.5.3 (Current) | Safety Alerts, Adventure Loop & CarPlay Mode (Speed cameras, school zones, 1-tap hazard reporting, scenic loops, CarPlay horizontal layout) |
-| v0.6.0 | Fog of War coverage tracker (light up every road driven across Washington) |
-| v1.0.0 | Offline tile packs, multi-stop optimization & haptic feedback |
+| v0.6.0 (Current) | Fog of War coverage tracker, HUD Speedometer, Twisty Backroad Fun Meter, Lane Guidance, Co-Pilot Personalities |
+| v0.7.0 | Live Weather radar & precipitation overlay, Mascot switcher (Pig 🐷 / Pitty 🐶) |
+| v1.0.0 | Offline map tile packs, multi-stop route optimization & haptic refinement |
 
 ## Bumping the version
 Edit `APP_VERSION` in [`js/version.js`](js/version.js). Settings › About and the offline cache update automatically.

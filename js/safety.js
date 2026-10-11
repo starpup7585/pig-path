@@ -60,6 +60,15 @@ export function playSafetyChime(type = 'bell') {
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
       osc.start(t);
       osc.stop(t + 0.45);
+    } else if (type === 'overspeed') {
+      // Gentle descending two-tone reminder (520Hz -> 440Hz)
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, t);
+      osc.frequency.setValueAtTime(440, t + 0.14);
+      gain.gain.setValueAtTime(0.24, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      osc.start(t);
+      osc.stop(t + 0.5);
     } else {
       // Standard bell
       osc.type = 'sine';

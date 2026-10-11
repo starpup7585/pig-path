@@ -20,6 +20,11 @@ const DEFAULTS = {
   speedCameraAlerts: true, // speed & red light camera chimes
   schoolZoneAlerts: true,  // active school zone alerts
   mountainPassAlerts: true,// mountain pass weather advisory
+  speedometer: true,       // live digital speedometer in HUD
+  overSpeedAlert: 5,       // chime when driving +5 mph over limit
+  laneAssist: true,        // visual lane guidance board
+  voicePersonality: 'siri',// 'siri' | 'roadtrip' | 'snarky'
+  fogOfWar: true,          // record driven road coverage
 };
 
 const listeners = new Set();

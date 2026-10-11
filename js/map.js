@@ -309,10 +309,58 @@ export class MapController {
       m.getSource('routes-alt')?.setData(this.currentAltData);
     }
 
+    // Fog of War Coverage Layers (neon glowing roads driven across Washington)
+    if (!m.getSource('fog-of-war')) m.addSource('fog-of-war', { type: 'geojson', data: EMPTY });
+    if (!m.getLayer('fog-of-war-glow')) {
+      m.addLayer({
+        id: 'fog-of-war-glow',
+        type: 'line',
+        source: 'fog-of-war',
+        slot: 'middle',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#00f5d4',
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 8, 4, 13, 8, 16, 14, 19, 20],
+          'line-opacity': 0.4,
+          'line-blur': 1.6,
+        },
+      });
+    }
+    if (!m.getLayer('fog-of-war-core')) {
+      m.addLayer({
+        id: 'fog-of-war-core',
+        type: 'line',
+        source: 'fog-of-war',
+        slot: 'middle',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#34c759',
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 8, 2, 13, 4, 16, 7, 19, 11],
+          'line-opacity': 0.85,
+        },
+      });
+    }
+
     this.applyWaShields();
     if (settings.customLocation) {
       this.applyCustomLocation();
     }
+  }
+
+  updateFogOfWarLayer(geoJson) {
+    const m = this.map;
+    if (!m || !m.getSource('fog-of-war')) return;
+    if (geoJson) {
+      m.getSource('fog-of-war').setData(geoJson);
+    }
+  }
+
+  setFogOfWarVisible(visible) {
+    const m = this.map;
+    if (!m) return;
+    const val = visible ? 'visible' : 'none';
+    if (m.getLayer('fog-of-war-glow')) m.setLayoutProperty('fog-of-war-glow', 'visibility', val);
+    if (m.getLayer('fog-of-war-core')) m.setLayoutProperty('fog-of-war-core', 'visibility', val);
   }
 
   applyWaShields() {
@@ -692,7 +740,7 @@ export class MapController {
     const isAccurate = accuracy < 200;
     this.prevAccuracy = accuracy;
 
-    this.pos = { lat, lng, accuracy, isManual: false };
+    this.pos = { lat, lng, accuracy, isManual: false, speed, heading };
     this.ensurePuck();
     this.puck.setLngLat([lng, lat]);
     this.updateAccuracy();
