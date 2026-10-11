@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pig Path">
+  <meta name="theme-color" content="#000000">
+  <meta name="format-detection" content="telephone=no">
+  <title>Pig Path</title>
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.32.0/mapbox-gl.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- Shown until the map loads (e.g. before a Mapbox token is entered) -->
+  <div id="mapPlaceholder" class="map-placeholder" aria-hidden="true">
+    <div class="placeholder-pig">🐷</div>
+  </div>
+  <div id="map"></div>
+  <div class="status-scrim" aria-hidden="true"></div>
+  <div id="safeProbe" aria-hidden="true"></div>
+
+  <!-- Floating map controls (top-right, like Apple Maps) -->
+  <div class="map-controls glass">
+    <button id="btnLayers" aria-label="Choose map">
+      <svg viewBox="0 0 24 24"><path d="M9 4L3 6.5V20l6-2.5 6 2.5 6-2.5V4l-6 2.5z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9 4v13.5M15 6.5V20" fill="none" stroke="currentColor" stroke-width="1.9"/></svg>
+    </button>
+    <div class="divider"></div>
+    <button id="btnLocate" aria-label="Show my location"></button>
+  </div>
+  <button id="btn3D" class="map-pill glass" aria-label="Toggle 3D">3D</button>
+  <button id="btnCompass" class="compass glass hidden" aria-label="Reset to north">
+    <div class="compass-rose" id="compassRose">
+      <svg viewBox="0 0 44 44">
+        <g stroke="currentColor" stroke-width="1" opacity=".35">
+          <line x1="22" y1="4" x2="22" y2="7"/><line x1="22" y1="37" x2="22" y2="40"/>
+          <line x1="4" y1="22" x2="7" y2="22"/><line x1="37" y1="22" x2="40" y2="22"/>
+        </g>
+        <path d="M22 9l4 9h-8z" fill="#ff3b30"/>
+        <text x="22" y="29" text-anchor="middle" font-size="10" font-weight="700" fill="currentColor">N</text>
+      </svg>
+    </div>
+  </button>
+
+  <!-- Turn-by-Turn Driving HUD (Apple Maps style) -->
+  <header id="navBanner" class="nav-banner hidden" aria-label="Turn guidance">
+    <div class="nav-banner-card">
+      <div class="nav-maneuver-col">
+        <div id="navTurnIcon" class="nav-turn-icon"></div>
+        <div id="navTurnDist" class="nav-turn-dist">500 FT</div>
+      </div>
+      <div class="nav-instruction-col">
+        <div id="navExitBadge" class="nav-exit-badge hidden">EXIT</div>
+        <div id="navTurnInstruction" class="nav-turn-instruction">Turn right onto 4th Ave</div>
+        <div id="navNextPreview" class="nav-next-preview hidden">Then: Merge onto highway</div>
+        <div id="navLaneGuidance" class="nav-lane-guidance hidden"></div>
+      </div>
+      <div class="nav-actions-col">
+        <button id="navMuteBtn" class="nav-icon-btn" aria-label="Mute voice directions">
+          <svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><path d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+    <!-- Active Safety / Camera / School Zone Alert Banner -->
+    <div id="navHazardAlert" class="nav-hazard-alert hidden">
+      <span class="hazard-alert-icon" id="navHazardIcon">📷</span>
+      <div class="hazard-alert-info">
+        <span class="hazard-alert-text" id="navHazardText">Speed Camera Ahead · 30 MPH</span>
+        <span class="hazard-alert-sub" id="navHazardSub">Photo enforced</span>
+      </div>
+      <span class="hazard-alert-dist" id="navHazardDist">1,200 FT</span>
+    </div>
+  </header>
+
+  <!-- Speed Limit Sign (US MUTCD Apple Maps style) -->
+  <aside id="speedLimitSign" class="speed-limit-sign hidden" aria-label="Speed limit">
+    <div class="speed-sign-box">
+      <div class="speed-sign-title">SPEED<br>LIMIT</div>
+      <div id="speedLimitNumber" class="speed-sign-number">35</div>
+    </div>
+  </aside>
+
+  <!-- Bottom Navigation Dock (Apple Maps Driving Controls) -->
+  <footer id="navDock" class="nav-dock hidden" aria-label="Navigation controls">
+    <button id="btnNavEnd" class="nav-end-btn" aria-label="End route">
+      <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+      <span>End</span>
+    </button>
+    <div class="nav-dock-status">
+      <div class="nav-dock-eta" id="navDockEtaTime">-- <span class="unit">min</span></div>
+      <div class="nav-dock-sub">
+        <span id="navDockArriveTime">--:--</span> · <span id="navDockDist">-- mi</span> · <span id="navDockEnergy">--% ⚡</span>
+      </div>
+    </div>
+    <div class="nav-dock-actions">
+      <button id="btnReportHazard" class="nav-circle-btn hazard-btn" aria-label="Report hazard" title="Report hazard">
+        <svg viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 4.2L20.1 19H3.9L12 6.2zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z" fill="currentColor"/></svg>
+      </button>
+      <button id="btnCarPlay" class="nav-circle-btn carplay-btn" aria-label="CarPlay Mode" title="CarPlay Dashboard">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2zm0 2v8h16V8H4zm4 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm8 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" fill="currentColor"/></svg>
+      </button>
+      <button id="btnNavSimulate" class="nav-sim-btn" aria-label="Simulate test drive">
+        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+        <span>Test</span>
+      </button>
+      <button id="btnNavSteps" class="nav-circle-btn" aria-label="Route steps">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </footer>
+
+  <!-- Steps Modal Drawer -->
+  <div class="modal" id="stepsModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2>Route Steps</h2><button class="done" data-close>Done</button>
+      </header>
+      <div class="modal-body">
+        <div id="stepsListContainer" class="card list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom sheet -->
+  <section id="sheet" class="sheet glass">
+    <div class="sheet-drag">
+      <div class="grabber-area"><div class="grabber"></div></div>
+      <div class="sheet-header">
+        <label class="search-field">
+          <svg class="search-lens" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+          <input id="searchInput" type="search" placeholder="Search Pig Path" enterkeyhint="search" autocomplete="off" autocorrect="off">
+          <button id="searchClear" class="search-clear hidden" aria-label="Clear search" tabindex="-1">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M8 8l8 8M16 8l-8 8" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </button>
+          <button id="searchMic" class="search-mic" aria-label="Voice search" type="button" tabindex="-1">
+            <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 10a7 7 0 0014 0M12 18v3m-4 0h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </label>
+        <button id="btnSettings" class="avatar" aria-label="Settings">🐷</button>
+        <button id="sheetCancel" class="sheet-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div class="sheet-content">
+      <!-- 1. Home Pane (Default) -->
+      <div id="homePane" class="sheet-pane">
+        <div class="section-head"><h3>Find Nearby</h3></div>
+        <div class="quick-categories" id="quickCategoriesHome">
+          <!-- Populated by search.js / app.js -->
+        </div>
+
+        <div class="section-head"><h3>Favorites</h3></div>
+        <div class="card favorites">
+          <button class="fav" data-fav="home">
+            <span class="fav-icon home"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z" fill="currentColor"/></svg></span>
+            <span class="fav-label">Home</span><span class="fav-sub" id="favHomeSub">Set in search</span>
+          </button>
+          <button class="fav" data-fav="work">
+            <span class="fav-icon work"><svg viewBox="0 0 24 24"><path d="M9 6V5a2 2 0 012-2h2a2 2 0 012 2v1h4a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2zm2 0h2V5h-2z" fill="currentColor"/></svg></span>
+            <span class="fav-label">Work</span><span class="fav-sub" id="favWorkSub">Set in search</span>
+          </button>
+          <button class="fav" data-soon="0.4.0" data-title="Favorites">
+            <span class="fav-icon add"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span>
+            <span class="fav-label">Add</span><span class="fav-sub">&nbsp;</span>
+          </button>
+        </div>
+
+        <div class="section-head"><h3>Explorer</h3></div>
+        <div class="card list">
+          <button class="list-row" data-action="freeroam">
+            <span class="row-icon" style="background:#5856d6"><svg viewBox="0 0 24 24"><path d="M12 2.5l8.5 4.8v9.4L12 21.5l-8.5-4.8V7.3z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M3.5 7.3L12 12l8.5-4.7M12 12v9.5" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg></span>
+            <span class="row-text"><span class="row-title">Free-Roam 3D</span><span class="row-sub">Fly around in 3D, no route</span></span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="list-row" id="btnOpenAdventureLoop">
+            <span class="row-icon" style="background:#ff9500"><svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4M3 11V9a2 2 0 012-2h16M7 21l-4-4 4-4M21 13v2a2 2 0 01-2 2H3" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="row-text"><span class="row-title">Adventure Loop</span><span class="row-sub">Pick a time, end up back home</span></span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="list-row" data-soon="0.6.0" data-title="Fog of War">
+            <span class="row-icon" style="background:#1c1c3a"><svg viewBox="0 0 24 24"><path d="M3 19c3-7 6 1 9-5s5-7 9-9" fill="none" stroke="#ffd60a" stroke-width="2.4" stroke-linecap="round"/><circle cx="21" cy="5" r="1.6" fill="#ffd60a"/></svg></span>
+            <span class="row-text"><span class="row-title">Fog of War</span><span class="row-sub">Light up every road you drive</span></span>
+            <span class="badge">v0.6</span>
+          </button>
+        </div>
+
+        <p class="sheet-foot">Pig Path v<span data-version>0.5.3</span> · Oink responsibly 🐷</p>
+      </div>
+
+      <!-- 2. Search Results Pane -->
+      <div id="searchPane" class="sheet-pane hidden">
+        <div id="searchSuggestionsSection">
+          <div class="section-head"><h3 id="searchSectionTitle">Suggested Searches</h3></div>
+          <div id="recentSearchesList" class="card list"></div>
+        </div>
+        <div class="section-head hidden" id="searchResultsHead"><h3>Results</h3></div>
+        <div id="searchResultsList" class="card list hidden"></div>
+        <div id="searchEmptyState" class="empty-state hidden">
+          <p class="empty-title">No Places Found</p>
+          <span class="empty-sub">Check the spelling or try searching a nearby landmark</span>
+        </div>
+      </div>
+
+      <!-- 3. Destination Detail Pane -->
+      <div id="destPane" class="sheet-pane hidden">
+        <div class="dest-card">
+          <div class="dest-header">
+            <div class="dest-icon" id="destCategoryIcon"></div>
+            <div class="dest-title-wrap">
+              <h2 id="destTitle">Pike Place Market</h2>
+              <p id="destSubtitle">85 Pike St, Seattle, WA</p>
+            </div>
+            <button id="destClose" class="circle-close" aria-label="Dismiss destination">
+              <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+
+          <div class="dest-stats" id="destStats">
+            <span class="dest-stat-pill" id="destDurationPill">🚗 Calculating…</span>
+            <span class="dest-stat-sub" id="destDistanceSub"></span>
+          </div>
+
+          <div class="dest-fav-row">
+            <button id="btnSetAsHome" class="pill-btn-small">🏠 Set as Home</button>
+            <button id="btnSetAsWork" class="pill-btn-small">💼 Set as Work</button>
+          </div>
+
+          <div class="dest-actions">
+            <button id="btnDirections" class="primary-btn green-btn">
+              <svg viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="currentColor"/></svg>
+              <span>Directions</span>
+            </button>
+            <button id="btnFlyoverDest" class="action-btn-secondary">
+              <svg viewBox="0 0 24 24"><path d="M12 2.5l8.5 4.8v9.4L12 21.5l-8.5-4.8V7.3z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 7.3L12 12l8.5-4.7M12 12v9.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              <span>3D Flyover</span>
+            </button>
+            <button id="btnShareDest" class="circle-action-btn" aria-label="Share location" type="button">
+              <svg viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M12 3v12M8 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Route Navigation Preview Pane -->
+      <div id="routePane" class="sheet-pane hidden">
+        <div class="route-summary-card">
+          <!-- Apple Maps Transport Mode Tabs -->
+          <div class="transport-mode-bar" id="routeTransportBar">
+            <button class="transport-mode-btn active" data-mode="driving" type="button" aria-label="Drive">
+              <svg viewBox="0 0 24 24"><path d="M5 17h14M6 13h12l-1.5-5.5a2 2 0 00-1.9-1.5H9.4a2 2 0 00-1.9 1.5L6 13zm-2 4a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm16 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Drive</span>
+            </button>
+            <button class="transport-mode-btn" data-mode="walking" type="button" aria-label="Walk">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2" fill="currentColor"/><path d="M10 21l2-7 3 3v4M8 11l3-3 3 2 3-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Walk</span>
+            </button>
+            <button class="transport-mode-btn" data-mode="transit" type="button" aria-label="Transit">
+              <svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 11h14M7 17l-2 3M17 17l2 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8.5" cy="14" r="1.2" fill="currentColor"/><circle cx="15.5" cy="14" r="1.2" fill="currentColor"/></svg>
+              <span>Transit</span>
+            </button>
+            <button class="transport-mode-btn" data-mode="cycling" type="button" aria-label="Cycle">
+              <svg viewBox="0 0 24 24"><circle cx="6" cy="17" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="17" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 17l4.5-8h4.5M10.5 9l2 8h5.5M13 6l2 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="4" r="1.5" fill="currentColor"/></svg>
+              <span>Cycle</span>
+            </button>
+          </div>
+
+          <div class="route-eta-row">
+            <div class="eta-big" id="routeEtaTime">-- <span class="unit">min</span></div>
+            <div class="eta-meta">
+              <span class="eta-arrive" id="routeArriveTime">--:--</span>
+              <span class="eta-dist" id="routeDistance">-- mi</span>
+            </div>
+            <button id="routeClose" class="circle-close" aria-label="Exit directions">
+              <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div class="route-sub-badge" id="routeTrafficBadge">Fastest route with live traffic</div>
+
+          <!-- Active Waypoint Stop Banner -->
+          <div class="waypoint-strip hidden" id="waypointStrip">
+            <div class="waypoint-strip-left">
+              <span class="waypoint-badge-icon" id="waypointBadgeIcon">☕</span>
+              <div class="waypoint-strip-info">
+                <span class="waypoint-strip-name" id="waypointStripName">Starbucks</span>
+                <span class="waypoint-strip-sub" id="waypointStripSub">Stop along route · +4 min detour</span>
+              </div>
+            </div>
+            <button class="circle-close waypoint-remove-btn" id="btnRemoveWaypoint" type="button" aria-label="Remove stop">
+              <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+
+          <div class="route-options-container" id="routeOptionsContainer">
+            <!-- Route options cards populated by app.js -->
+          </div>
+
+          <!-- Route Tools: Add Stop & Leave By Departure Clock -->
+          <div class="route-tools-row" id="routeToolsRow">
+            <button class="route-tool-btn" id="btnAddStop" type="button" aria-label="Add a stop along route">
+              <span class="route-tool-icon">➕</span>
+              <div class="route-tool-col">
+                <span class="route-tool-text" id="addStopBtnText">Add Stop</span>
+                <span class="route-tool-tag" id="addStopTag">⚡ ☕ 🍔 🅿️</span>
+              </div>
+            </button>
+            <button class="route-tool-btn" id="btnLeaveBy" type="button" aria-label="Leave by departure alarm">
+              <span class="route-tool-icon">⏰</span>
+              <div class="route-tool-col">
+                <span class="route-tool-text" id="leaveByBtnText">Leave By</span>
+                <span class="route-tool-tag" id="leaveByTag">Arrive on time</span>
+              </div>
+            </button>
+          </div>
+
+          <div class="route-energy-row" id="routeEnergyRow">
+            <button class="battery-status-chip" id="btnBatteryChip" type="button" aria-label="Starting battery">
+              <span class="battery-icon-svg" id="batteryIconSvg">
+                <svg viewBox="0 0 24 24"><rect x="2" y="6" width="17" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><rect id="batteryBarSvg" x="4" y="8" width="10" height="8" rx="1.5" fill="currentColor"/><path d="M21 10v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
+              <span class="battery-label" id="batteryArrivalText">Arrive with 42% ⚡</span>
+              <span class="battery-start-tag" id="batteryStartTag">(from 80%)</span>
+              <svg class="battery-chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+            </button>
+            <div class="energy-warning-pill hidden" id="energyWarningPill">⚠️ Low Battery</div>
+          </div>
+
+          <div class="route-actions">
+            <button id="btnStartDrive" class="primary-btn green-btn go-btn">
+              <svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z" fill="currentColor"/></svg>
+              <span>GO</span>
+            </button>
+            <button id="btnEndRoute" class="action-btn-secondary">
+              <span>End</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <div class="modal" id="settingsModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2>Settings</h2><button class="done" data-close>Done</button>
+      </header>
+      <div class="modal-body">
+        <div class="profile">
+          <img src="icons/icon-192.png" alt="">
+          <div><div class="profile-name">Pig Path</div><div class="profile-sub">Your personal maps 🐷</div></div>
+        </div>
+
+        <h4 class="group-title">Saved Places</h4>
+        <div class="group">
+          <div class="cell tappable" id="settingsHomeRow">
+            <span class="cell-icon" style="background:#007aff"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z" fill="#fff"/></svg></span>
+            <span class="label">Home</span>
+            <span class="value" id="settingsHomeValue">Not set</span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="cell tappable" id="settingsWorkRow">
+            <span class="cell-icon" style="background:#a2845e"><svg viewBox="0 0 24 24"><path d="M9 6V5a2 2 0 012-2h2a2 2 0 012 2v1h4a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2zm2 0h2V5h-2z" fill="#fff"/></svg></span>
+            <span class="label">Work</span>
+            <span class="value" id="settingsWorkValue">Not set</span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <p class="group-foot">Tap to set from current location or search an address.</p>
+
+        <h4 class="group-title">Location &amp; Precision</h4>
+        <div class="group">
+          <div class="cell tappable" id="settingsLocationRow">
+            <span class="cell-icon" style="background:#34c759"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="#fff"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="7" fill="none" stroke="#fff" stroke-width="1.8"/></svg></span>
+            <span class="label">Current Location</span>
+            <span class="value" id="settingsLocationValue">Detecting…</span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <p class="group-foot" id="settingsLocationFoot">Tap to calibrate your exact spot if GPS or Wi-Fi is a couple miles off.</p>
+
+        <h4 class="group-title">Car &amp; Range</h4>
+        <div class="group">
+          <div class="cell">
+            <span class="cell-icon" style="background:#34c759"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z" fill="#fff"/></svg></span>
+            <span class="label">Vehicle Type</span>
+            <div class="segmented" data-setting="car">
+              <button data-value="ev">⚡ EV</button><button data-value="gas">⛽ Gas</button>
+            </div>
+          </div>
+          <div class="cell" id="carEvRangeRow">
+            <span class="cell-icon" style="background:#007aff"><svg viewBox="0 0 24 24"><path d="M16 6h-2V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2zM8 4h4v2H8V4z" fill="#fff"/><circle cx="10" cy="13" r="3" fill="#fff"/></svg></span>
+            <span class="label">Full Charge Range</span>
+            <div class="stepper-wrap">
+              <input type="number" id="settingEvRange" class="stepper-input" min="50" max="600" step="10" value="260">
+              <span class="unit">mi</span>
+            </div>
+          </div>
+          <div class="cell" id="carGasRangeRow" hidden>
+            <span class="cell-icon" style="background:#ff9500"><svg viewBox="0 0 24 24"><path d="M19.77 7.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11c-.94.36-1.61 1.26-1.61 2.33a2.5 2.5 0 002.5 2.5c.36 0 .69-.08 1-.22v5.22c0 .55-.45 1-1 1s-1-.45-1-1V14c0-1.1-.9-2-2-2h-1V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v16h10v-7.5h1.5v5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V9c0-.69-.28-1.32-.73-1.77zM12 10H6V5h6v5z" fill="#fff"/></svg></span>
+            <span class="label">Full Tank Range</span>
+            <div class="stepper-wrap">
+              <input type="number" id="settingGasRange" class="stepper-input" min="100" max="800" step="20" value="380">
+              <span class="unit">mi</span>
+            </div>
+          </div>
+        </div>
+        <p class="group-foot" id="carGroupFoot">Calculates arrival battery % and warns if you need to charge.</p>
+
+        <h4 class="group-title">Navigation</h4>
+        <div class="group">
+          <div class="cell">
+            <span class="cell-icon" style="background:#ff2d55"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z" fill="#fff"/><path d="M16 8.5a5 5 0 010 7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <span class="label">Voice Directions</span>
+            <label class="switch"><input type="checkbox" data-setting="voice"><span></span></label>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#ff9500"><svg viewBox="0 0 24 24"><text x="12" y="17.5" text-anchor="middle" font-size="16" font-weight="800" fill="#fff">$</text></svg></span>
+            <span class="label">Avoid Tolls by Default</span>
+            <label class="switch"><input type="checkbox" data-setting="avoidTolls"><span></span></label>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#5856d6"><svg viewBox="0 0 24 24"><path d="M3 16L16 3l5 5L8 21z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M7 12l2 2M10 9l2 2M13 6l2 2" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <span class="label">Distance</span>
+            <div class="segmented" data-setting="units">
+              <button data-value="mi">Miles</button><button data-value="km">Km</button>
+            </div>
+          </div>
+        </div>
+        <p class="group-foot">Spoken voice guidance & lane assist enabled during navigation.</p>
+
+        <h4 class="group-title">Map</h4>
+        <div class="group">
+          <div class="cell">
+            <span class="cell-icon" style="background:#007aff"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 4a8 8 0 010 16z" fill="#fff"/></svg></span>
+            <span class="label">Appearance</span>
+            <div class="segmented" data-setting="appearance">
+              <button data-value="auto">Auto</button><button data-value="light">Light</button><button data-value="dark">Dark</button>
+            </div>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#ff3b30"><svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="20" rx="3" fill="#fff"/><circle cx="12" cy="7" r="1.8" fill="#ff3b30"/><circle cx="12" cy="12" r="1.8" fill="#ff9500"/><circle cx="12" cy="17" r="1.8" fill="#34c759"/></svg></span>
+            <span class="label">Live Traffic</span>
+            <label class="switch"><input type="checkbox" data-setting="traffic"><span></span></label>
+          </div>
+        </div>
+        <p class="group-foot">Auto turns the map dark at sunset where you are, like Apple Maps.</p>
+
+        <h4 class="group-title">Driving &amp; Safety Alerts</h4>
+        <div class="group">
+          <div class="cell">
+            <span class="cell-icon" style="background:#ff9500"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="#fff"/><path d="M9 3L7.5 5H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V7a2 2 0 00-2-2h-3.5L15 3H9z" fill="none" stroke="#fff" stroke-width="2"/></svg></span>
+            <span class="label">Speed Camera Chimes</span>
+            <label class="switch"><input type="checkbox" data-setting="speedCameraAlerts"><span></span></label>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#ffd60a"><svg viewBox="0 0 24 24"><path d="M12 3L2 9l10 6 10-6-10-6zM4 14.5V17c0 3 8 4 8 4s8-1 8-4v-2.5" fill="none" stroke="#1c1c1e" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+            <span class="label">School Zones (20 MPH)</span>
+            <label class="switch"><input type="checkbox" data-setting="schoolZoneAlerts"><span></span></label>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#007aff"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07l14.14-14.14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <span class="label">Mountain Pass Advisory</span>
+            <label class="switch"><input type="checkbox" data-setting="mountainPassAlerts"><span></span></label>
+          </div>
+        </div>
+        <p class="group-foot">Plays gentle Apple chimes and displays active camera and school zone warnings.</p>
+
+        <h4 class="group-title">Mapbox</h4>
+        <div class="group">
+          <button class="cell tappable" id="tokenRow">
+            <span class="cell-icon" style="background:#8e8e93"><svg viewBox="0 0 24 24"><circle cx="8" cy="12" r="4" fill="none" stroke="#fff" stroke-width="2.4"/><path d="M12 12h9M18 12v3M21 12v3" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+            <span class="label">Access Token</span>
+            <span class="value mono" id="tokenValue">Not set</span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <p class="group-foot">Your token is saved only on this iPhone.</p>
+
+        <h4 class="group-title">About</h4>
+        <div class="group">
+          <div class="cell">
+            <span class="cell-icon" style="background:#ff2d55"><svg viewBox="0 0 24 24"><text x="12" y="17.5" text-anchor="middle" font-size="16">🐷</text></svg></span>
+            <span class="label">Version</span>
+            <span class="value" data-version>0.5.3</span>
+          </div>
+          <div class="cell">
+            <span class="cell-icon" style="background:#34c759"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="label">Build</span>
+            <span class="value" data-build>Safety Alerts, Adventure Loop &amp; CarPlay Mode</span>
+          </div>
+        </div>
+        <p class="group-foot center">Made for one very special driver 🐷</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Choose Map -->
+  <div class="modal modal-small" id="layersModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2>Choose Map</h2>
+        <button class="close-x" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="map-types">
+        <button data-maptype="explore"><div class="thumb explore"></div><span>Explore</span></button>
+        <button data-maptype="driving"><div class="thumb driving"></div><span>Driving</span></button>
+        <button data-maptype="satellite"><div class="thumb satellite"></div><span>Satellite</span></button>
+      </div>
+      <div class="group inset">
+        <div class="cell">
+          <span class="label">Live Traffic</span>
+          <label class="switch"><input type="checkbox" data-setting="traffic"><span></span></label>
+        </div>
+      </div>
+      <p class="group-foot inset-foot">Driving always shows traffic. Orange = slow, red = heavy.</p>
+    </div>
+  </div>
+
+  <!-- Starting Battery / Energy Modal -->
+  <div class="modal modal-small" id="batteryModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2 id="batteryModalTitle">Starting Battery</h2>
+        <button class="close-x" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="modal-body battery-modal-body">
+        <div class="battery-dial-wrap">
+          <span class="battery-dial-value" id="batteryDialVal">80%</span>
+          <span class="battery-dial-sub" id="batteryDialSub">~208 mi remaining</span>
+        </div>
+        <div class="battery-quick-grid" id="batteryQuickGrid">
+          <button class="pill-btn-small" data-pct="100">100%</button>
+          <button class="pill-btn-small" data-pct="90">90%</button>
+          <button class="pill-btn-small" data-pct="80">80%</button>
+          <button class="pill-btn-small" data-pct="70">70%</button>
+          <button class="pill-btn-small" data-pct="60">60%</button>
+          <button class="pill-btn-small" data-pct="50">50%</button>
+          <button class="pill-btn-small" data-pct="40">40%</button>
+          <button class="pill-btn-small" data-pct="30">30%</button>
+          <button class="pill-btn-small" data-pct="20">20%</button>
+        </div>
+        <div class="slider-wrap">
+          <input type="range" id="batterySlider" min="5" max="100" step="1" value="80">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add a Stop Modal -->
+  <div class="modal" id="addStopModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2>Add a Stop Along Route</h2><button class="done" data-close>Done</button>
+      </header>
+      <div class="modal-body stop-modal-body">
+        <div class="stop-categories-row" id="stopCategoriesRow">
+          <button class="stop-cat-chip active" id="stopCatPrimary" data-cat="ev">⚡ Fast Chargers</button>
+          <button class="stop-cat-chip" data-cat="coffee">☕ Coffee</button>
+          <button class="stop-cat-chip" data-cat="food">🍔 Food</button>
+          <button class="stop-cat-chip" data-cat="parking">🅿️ Parking</button>
+        </div>
+
+        <div class="stop-search-box">
+          <svg class="search-box-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <input id="stopSearchInput" type="text" placeholder="Search along route (e.g. Dutch Bros, Costco)…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <button class="clear-circle hidden" id="stopSearchClear" type="button" aria-label="Clear search">✕</button>
+        </div>
+
+        <div class="stop-candidates-list" id="stopCandidatesList">
+          <!-- Populated dynamically by app.js -->
+        </div>
+
+        <div id="stopEmptyState" class="empty-state hidden">
+          <p class="empty-title">No Stops Found Along Route</p>
+          <span class="empty-sub">Try another category or search a specific brand</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leave By Target Arrival Modal -->
+  <div class="modal modal-small" id="leaveByModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2>Leave By Departure Clock</h2>
+        <button class="close-x" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="modal-body leave-by-body">
+        <!-- Target Arrival Picker -->
+        <div class="leave-target-card">
+          <div class="leave-target-label">DESIRED ARRIVAL TIME</div>
+          <div class="leave-time-input-row">
+            <input type="time" id="leaveTargetTimeInput" class="leave-time-picker">
+            <div class="leave-quick-offsets" id="leaveQuickOffsets">
+              <button class="pill-btn-small" data-offset="30">+30m</button>
+              <button class="pill-btn-small" data-offset="60">+1h</button>
+              <button class="pill-btn-small" data-offset="120">+2h</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Calculation Hero -->
+        <div class="leave-calc-card">
+          <div class="leave-calc-header">
+            <span class="leave-calc-badge" id="leaveStatusBadge">🟢 On Track</span>
+            <span class="leave-calc-traffic">Includes live traffic</span>
+          </div>
+          <div class="leave-departure-hero">
+            <span class="leave-hero-label">RECOMMENDED DEPARTURE</span>
+            <span class="leave-hero-time" id="leaveHeroTime">--:--</span>
+            <span class="leave-hero-countdown" id="leaveHeroCountdown">Leave in -- min</span>
+          </div>
+          <div class="leave-breakdown-row">
+            <div class="leave-breakdown-col">
+              <span class="sub-label">Drive Time</span>
+              <span class="sub-val" id="leaveDriveDuration">-- min</span>
+            </div>
+            <div class="leave-breakdown-col">
+              <span class="sub-label">Traffic Buffer</span>
+              <span class="sub-val" id="leaveBufferVal">5 min</span>
+            </div>
+            <div class="leave-breakdown-col">
+              <span class="sub-label">Target Arrival</span>
+              <span class="sub-val" id="leaveTargetSummary">--:--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buffer Selector -->
+        <div class="leave-buffer-row">
+          <span class="label">Traffic Buffer</span>
+          <div class="segmented" id="leaveBufferSegmented">
+            <button data-buffer="0">0m</button>
+            <button class="active" data-buffer="5">5m</button>
+            <button data-buffer="10">10m</button>
+            <button data-buffer="15">15m</button>
+          </div>
+        </div>
+
+        <!-- Alarm Button -->
+        <div class="leave-actions">
+          <button class="primary-btn green-btn" id="btnSetLeaveAlarm">
+            <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" fill="currentColor"/></svg>
+            <span id="btnSetLeaveAlarmText">Set Departure Alert</span>
+          </button>
+          <button class="action-btn-secondary" id="btnClearLeaveAlarm" hidden>
+            <span>Cancel Alert</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Location Calibration Modal -->
+  <div class="modal" id="locationModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2>Calibrate Location</h2><button class="done" data-close>Done</button>
+      </header>
+      <div class="modal-body location-modal-body">
+        <!-- Live Precision Card -->
+        <div class="loc-status-card" id="locStatusCard">
+          <div class="loc-status-header">
+            <span class="loc-status-badge" id="locPrecisionBadge">🟢 High Precision GPS</span>
+            <span class="loc-status-coords mono" id="locCoordsText">--°, --°</span>
+          </div>
+          <div class="loc-status-accuracy" id="locAccuracyText">Accuracy: ±-- ft</div>
+          <p class="loc-status-sub" id="locStatusSub">Your blue pig location puck is aligned with live satellite GPS.</p>
+        </div>
+
+        <!-- Calibrated Active Override Banner -->
+        <div class="loc-calibrated-banner hidden" id="locCalibratedBanner">
+          <div class="loc-calibrated-info">
+            <span class="loc-calibrated-title">🎯 Custom Location Active</span>
+            <span class="loc-calibrated-name" id="locCalibratedName">Calibrated Spot</span>
+          </div>
+          <button class="pill-btn-small revert-gps-btn" id="btnRevertGps" type="button">Reset to GPS</button>
+        </div>
+
+        <!-- Quick Calibration Shortcuts -->
+        <div class="loc-quick-actions">
+          <button class="loc-quick-btn" id="btnLocUseHome" type="button">
+            <span class="loc-btn-icon" style="background:#007aff">🏠</span>
+            <div class="loc-btn-col">
+              <span class="loc-btn-title">Set as Home</span>
+              <span class="loc-btn-sub" id="locHomeSub">Snap puck to saved home address</span>
+            </div>
+          </button>
+          <button class="loc-quick-btn" id="btnLocUseWork" type="button">
+            <span class="loc-btn-icon" style="background:#a2845e">💼</span>
+            <div class="loc-btn-col">
+              <span class="loc-btn-title">Set as Work</span>
+              <span class="loc-btn-sub" id="locWorkSub">Snap puck to saved work address</span>
+            </div>
+          </button>
+          <button class="loc-quick-btn" id="btnLocUseMapCenter" type="button">
+            <span class="loc-btn-icon" style="background:#ff9500">📍</span>
+            <div class="loc-btn-col">
+              <span class="loc-btn-title">Set to Map Center</span>
+              <span class="loc-btn-sub">Pin location to current map center</span>
+            </div>
+          </button>
+          <button class="loc-quick-btn" id="btnLocRefreshGps" type="button">
+            <span class="loc-btn-icon" style="background:#34c759">🔄</span>
+            <div class="loc-btn-col">
+              <span class="loc-btn-title">Force GPS Refresh</span>
+              <span class="loc-btn-sub">Request fresh satellite fix (0s cache)</span>
+            </div>
+          </button>
+        </div>
+
+        <!-- Address Search for Exact House/Street Calibration -->
+        <h4 class="group-title" style="margin: 10px 4px 6px;">Pin Exact Address</h4>
+        <div class="loc-search-box">
+          <svg class="search-box-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <input id="locSearchInput" type="text" placeholder="Type your street, zip, or landmark…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <button class="clear-circle hidden" id="locSearchClear" type="button" aria-label="Clear">✕</button>
+        </div>
+        <div class="loc-search-results hidden" id="locSearchResultsList"></div>
+
+        <!-- iPhone 16 Pro Tip -->
+        <div class="loc-ios-tip">
+          <span class="loc-tip-icon">💡</span>
+          <div class="loc-tip-text">
+            <b>iPhone 16 Pro Tip</b>
+            <p>If your location is a couple miles off on iPhone: go to <b>iOS Settings › Privacy &amp; Security › Location Services › Safari Websites</b>, and ensure <b>"Precise Location"</b> is toggled <b>ON</b>. When turned off, iOS intentionally shifts your location by 2 to 4 miles for privacy.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mapbox token onboarding -->
+  <div class="modal" id="tokenModal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2>Set Up Maps</h2><button class="done" id="tokenCancel" hidden>Cancel</button>
+      </header>
+      <div class="modal-body onboarding">
+        <img src="icons/icon-192.png" class="hero-icon" alt="">
+        <h1>Welcome to Pig Path</h1>
+        <p class="lead">One quick step. Pig Path uses <b>Mapbox</b> for maps and live traffic, and it's free for personal use.</p>
+
+        <ol class="group steps">
+          <li>
+            <span class="num">1</span>
+            <div>
+              <b>Create a free Mapbox account</b>
+              <a href="https://account.mapbox.com/auth/signup/" target="_blank" rel="noopener">Open mapbox.com ↗</a>
+            </div>
+          </li>
+          <li>
+            <span class="num">2</span>
+            <div>
+              <b>Copy your Default public token</b>
+              <span class="sub">It's on your account page under <i>Access tokens</i>, and it starts with <code>pk.</code></span>
+            </div>
+          </li>
+          <li>
+            <span class="num">3</span>
+            <div><b>Paste it here</b><span class="sub">Then tap Start Exploring.</span></div>
+          </li>
+        </ol>
+
+        <div class="group token-row">
+          <input id="tokenInput" type="text" placeholder="pk.eyJ1Ijoi…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <button class="paste-btn" id="tokenPaste">Paste</button>
+        </div>
+        <p class="error" id="tokenError" hidden></p>
+        <button class="primary-btn" id="tokenSave"><span>Start Exploring 🐷</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1-Tap Incident / Hazard Reporting Modal (Apple Maps style) -->
+  <div class="modal modal-small" id="hazardModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2>Report Incident</h2><button class="done" data-close>Cancel</button>
+      </header>
+      <div class="modal-body">
+        <p class="hazard-modal-sub">Tap to report a live road condition for fellow drivers.</p>
+        <div class="hazard-grid">
+          <button class="hazard-card" data-hazard="police" type="button">
+            <div class="hazard-icon-box police"><span class="hz-emoji">🚓</span></div>
+            <span class="hazard-title">Speed Trap</span>
+            <span class="hazard-desc">Police ahead</span>
+          </button>
+          <button class="hazard-card" data-hazard="hazard" type="button">
+            <div class="hazard-icon-box danger"><span class="hz-emoji">⚠️</span></div>
+            <span class="hazard-title">Hazard</span>
+            <span class="hazard-desc">Debris or object</span>
+          </button>
+          <button class="hazard-card" data-hazard="crash" type="button">
+            <div class="hazard-icon-box crash"><span class="hz-emoji">🛑</span></div>
+            <span class="hazard-title">Crash</span>
+            <span class="hazard-desc">Vehicle accident</span>
+          </button>
+          <button class="hazard-card" data-hazard="work" type="button">
+            <div class="hazard-icon-box work"><span class="hz-emoji">🚧</span></div>
+            <span class="hazard-title">Road Work</span>
+            <span class="hazard-desc">Lane closed</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Adventure Loop Modal -->
+  <div class="modal" id="adventureModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <span></span><h2>Adventure Loop</h2><button class="done" data-close>Done</button>
+      </header>
+      <div class="modal-body adventure-modal-body">
+        <div class="adv-hero-card">
+          <div class="adv-hero-icon">🏎️</div>
+          <div class="adv-hero-col">
+            <h3 class="adv-hero-title">Scenic Drive &amp; Return</h3>
+            <p class="adv-hero-sub">Pick a time budget and explore a scenic loop that circles back home.</p>
+          </div>
+        </div>
+
+        <label class="group-title" style="margin-top:4px;">How long do you want to drive?</label>
+        <div class="adv-duration-chips" id="advDurationChips">
+          <button class="adv-chip" data-min="30" type="button">30 min</button>
+          <button class="adv-chip active" data-min="45" type="button">45 min</button>
+          <button class="adv-chip" data-min="60" type="button">1 hour</button>
+          <button class="adv-chip" data-min="90" type="button">1.5 hr</button>
+          <button class="adv-chip" data-min="120" type="button">2 hr</button>
+        </div>
+
+        <label class="group-title">Scenery Style</label>
+        <div class="adv-theme-cards" id="advThemeCards">
+          <button class="adv-theme-card active" data-theme="waterfront" type="button">
+            <span class="adv-theme-icon">🌊</span>
+            <div class="adv-theme-col">
+              <span class="adv-theme-name">Waterfront &amp; Views</span>
+              <span class="adv-theme-desc">Lakes, beaches &amp; Puget Sound vistas</span>
+            </div>
+          </button>
+          <button class="adv-theme-card" data-theme="nature" type="button">
+            <span class="adv-theme-icon">🌲</span>
+            <div class="adv-theme-col">
+              <span class="adv-theme-name">Forest &amp; Lakes</span>
+              <span class="adv-theme-desc">Wooded parks, tree canopies &amp; lake loops</span>
+            </div>
+          </button>
+          <button class="adv-theme-card" data-theme="curvy" type="button">
+            <span class="adv-theme-icon">⛰️</span>
+            <div class="adv-theme-col">
+              <span class="adv-theme-name">Foothills &amp; Curves</span>
+              <span class="adv-theme-desc">Scenic winding country backroads</span>
+            </div>
+          </button>
+        </div>
+
+        <div id="advResultCard" class="adv-result-card hidden">
+          <div class="adv-result-header">
+            <span class="adv-result-title" id="advResultTitle">45-Minute Waterfront Loop</span>
+            <span class="adv-result-badge" id="advResultDist">~18 mi</span>
+          </div>
+          <p class="adv-result-info" id="advResultInfo">Scenic loop via Magnolia Bluff, Alki Beach, and Lake Washington.</p>
+          <button id="btnStartAdventureDrive" class="primary-btn green-btn" type="button">
+            <svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z" fill="currentColor"/></svg>
+            <span>Start Adventure Drive</span>
+          </button>
+        </div>
+
+        <button id="btnGenerateLoop" class="primary-btn" type="button">
+          <span>Generate Scenic Loop 🐷</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast glass" role="status" aria-live="polite"></div>
+
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.32.0/mapbox-gl.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

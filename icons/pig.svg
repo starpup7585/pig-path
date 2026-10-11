@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Ears -->
+  <path d="M 24 35 C 14 16 12 36 22 50 Z" fill="#ff94b8" stroke="#ff75a0" stroke-width="2"/>
+  <path d="M 76 35 C 86 16 88 36 78 50 Z" fill="#ff94b8" stroke="#ff75a0" stroke-width="2"/>
+  <path d="M 26 36 C 18 24 18 36 24 45 Z" fill="#ffbccc"/>
+  <path d="M 74 36 C 82 24 82 36 76 45 Z" fill="#ffbccc"/>
+  <!-- Head -->
+  <circle cx="50" cy="54" r="35" fill="#ffb3cc"/>
+  <!-- Eyes -->
+  <ellipse cx="37" cy="46" rx="3.5" ry="4.5" fill="#2c2c2e"/>
+  <circle cx="38" cy="44.5" r="1.4" fill="#ffffff"/>
+  <ellipse cx="63" cy="46" rx="3.5" ry="4.5" fill="#2c2c2e"/>
+  <circle cx="64" cy="44.5" r="1.4" fill="#ffffff"/>
+  <!-- Snout -->
+  <ellipse cx="50" cy="62" rx="16" ry="12" fill="#ff85aa"/>
+  <!-- Nostrils -->
+  <ellipse cx="44.5" cy="62" rx="3.2" ry="4.5" fill="#a42854"/>
+  <ellipse cx="55.5" cy="62" rx="3.2" ry="4.5" fill="#a42854"/>
+</svg>

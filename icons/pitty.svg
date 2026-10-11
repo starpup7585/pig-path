@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <!-- Soft shadow -->
+    <filter id="pittyShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="rgba(0,0,0,0.25)"/>
+    </filter>
+  </defs>
+
+  <!-- Left Rose Ear (Black with inner dark fold) -->
+  <path d="M 26 34 C 14 20 10 44 20 58 C 25 50 28 40 26 34 Z" fill="#202024"/>
+  <path d="M 22 38 C 18 30 16 44 22 50 Z" fill="#35353a"/>
+
+  <!-- Right Rose Ear (White with dark edge) -->
+  <path d="M 94 34 C 106 20 110 44 100 58 C 95 50 92 40 94 34 Z" fill="#ffffff" stroke="#2b2b2f" stroke-width="2.5"/>
+  <path d="M 98 38 C 102 30 104 44 98 50 Z" fill="#f0d4dd"/>
+
+  <!-- Head Base (Broad Pitbull Skull) -->
+  <g filter="url(#pittyShadow)">
+    <path d="M 28 44 C 28 24 92 24 92 44 C 102 58 100 84 86 96 C 74 106 46 106 34 96 C 20 84 18 58 28 44 Z" fill="#ffffff"/>
+  </g>
+
+  <!-- Black Eye Patch (Classic Little Rascals Black & White Pitty over Left Eye) -->
+  <path d="M 32 38 C 32 28 58 28 58 42 C 58 60 38 64 32 54 C 29 48 30 41 32 38 Z" fill="#202024"/>
+
+  <!-- Forehead Brow / Wrinkle Lines (Characteristic Pitty Expression) -->
+  <path d="M 52 34 C 60 32 68 34 68 34" fill="none" stroke="#e0e0e4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 55 38 C 60 37 65 38 65 38" fill="none" stroke="#e0e0e4" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Left Eye (Inside the Black Patch - expressive warm brown with white glint) -->
+  <circle cx="43" cy="48" r="5.5" fill="#6d4427"/>
+  <circle cx="43" cy="48" r="3.8" fill="#141416"/>
+  <circle cx="44.5" cy="46" r="1.5" fill="#ffffff"/>
+
+  <!-- Right Eye (On the White Side) -->
+  <circle cx="77" cy="48" r="5.5" fill="#6d4427"/>
+  <circle cx="77" cy="48" r="3.8" fill="#141416"/>
+  <circle cx="78.5" cy="46" r="1.5" fill="#ffffff"/>
+
+  <!-- Pitty Wide Muzzle (Soft Warm White) -->
+  <ellipse cx="60" cy="74" rx="19" ry="14" fill="#fafafc"/>
+
+  <!-- Wide Pitbull Nose (Charcoal / Black) -->
+  <path d="M 52 69 C 52 66 68 66 68 69 C 68 76 63 79 60 79 C 57 79 52 76 52 69 Z" fill="#1e1e22"/>
+  <!-- Nostrils -->
+  <ellipse cx="56" cy="72" rx="1.6" ry="2.2" fill="#111113"/>
+  <ellipse cx="64" cy="72" rx="1.6" ry="2.2" fill="#111113"/>
+
+  <!-- Cheerful Mouth Line & Whiskers -->
+  <path d="M 60 79 L 60 85 M 52 83 C 56 87 60 87 60 87 C 60 87 64 87 68 83" fill="none" stroke="#28282c" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="47" cy="77" r="1" fill="#bbb"/>
+  <circle cx="45" cy="80" r="1" fill="#bbb"/>
+  <circle cx="73" cy="77" r="1" fill="#bbb"/>
+  <circle cx="75" cy="80" r="1" fill="#bbb"/>
+
+  <!-- Sweet Little Pink Tongue Tip -->
+  <path d="M 57 87 C 57 91 63 91 63 87 Z" fill="#ff7aa8"/>
+</svg>
