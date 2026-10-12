@@ -457,18 +457,18 @@ export class MapController {
           'icon-image': ['concat', 'interstate-', ['get', 'ref']],
           'icon-size': [
             'interpolate', ['linear'], ['zoom'],
-            6, 0.40,
-            10, 0.52,
-            13, 0.64,
-            16, 0.76,
+            6, 0.44,
+            10, 0.50,
+            13, 0.56,
+            16, 0.64,
           ],
           'symbol-placement': 'line',
-          'symbol-spacing': 280,
+          'symbol-spacing': 340,
           'icon-rotation-alignment': 'viewport',
           'icon-pitch-alignment': 'viewport',
           'icon-allow-overlap': false,
           'icon-ignore-placement': false,
-          'icon-padding': 10,
+          'icon-padding': 12,
         },
       });
     }
@@ -491,10 +491,10 @@ export class MapController {
         ],
         layout: {
           'icon-image': ['concat', 'interstate-', ['get', 'ref']],
-          'icon-size': 0.46,
+          'icon-size': 0.50,
           'symbol-placement': 'point',
           'icon-allow-overlap': false,
-          'icon-padding': 8,
+          'icon-padding': 10,
         },
       });
     }
@@ -517,18 +517,18 @@ export class MapController {
           'icon-image': ['concat', 'us-hwy-', ['get', 'ref']],
           'icon-size': [
             'interpolate', ['linear'], ['zoom'],
-            7, 0.40,
-            11, 0.52,
-            14, 0.62,
-            17, 0.74,
+            7, 0.44,
+            11, 0.50,
+            14, 0.56,
+            17, 0.64,
           ],
           'symbol-placement': 'line',
-          'symbol-spacing': 280,
+          'symbol-spacing': 340,
           'icon-rotation-alignment': 'viewport',
           'icon-pitch-alignment': 'viewport',
           'icon-allow-overlap': false,
           'icon-ignore-placement': false,
-          'icon-padding': 10,
+          'icon-padding': 12,
         },
       });
     }
@@ -551,10 +551,10 @@ export class MapController {
         ],
         layout: {
           'icon-image': ['concat', 'us-hwy-', ['get', 'ref']],
-          'icon-size': 0.44,
+          'icon-size': 0.50,
           'symbol-placement': 'point',
           'icon-allow-overlap': false,
-          'icon-padding': 8,
+          'icon-padding': 10,
         },
       });
     }
@@ -581,18 +581,18 @@ export class MapController {
           'icon-image': ['concat', 'wa-sr-', ['get', 'ref']],
           'icon-size': [
             'interpolate', ['linear'], ['zoom'],
-            8, 0.40,
-            11, 0.52,
-            14, 0.62,
-            17, 0.74,
+            8, 0.44,
+            11, 0.50,
+            14, 0.56,
+            17, 0.64,
           ],
           'symbol-placement': 'line',
-          'symbol-spacing': 280,
+          'symbol-spacing': 340,
           'icon-rotation-alignment': 'viewport',
           'icon-pitch-alignment': 'viewport',
           'icon-allow-overlap': false,
           'icon-ignore-placement': false,
-          'icon-padding': 10,
+          'icon-padding': 12,
         },
       });
     }
@@ -617,10 +617,10 @@ export class MapController {
         ],
         layout: {
           'icon-image': ['concat', 'wa-sr-', ['get', 'ref']],
-          'icon-size': 0.44,
+          'icon-size': 0.50,
           'symbol-placement': 'point',
           'icon-allow-overlap': false,
-          'icon-padding': 8,
+          'icon-padding': 10,
         },
       });
     }

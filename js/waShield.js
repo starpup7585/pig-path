@@ -44,26 +44,26 @@ export function generateWaShieldSvg(ref) {
   const posX = (w - origW) / 2 - 297.6 * scale;
   const posY = (h - origH) / 2 - (-58.6) * scale + 2;
 
-  const fontSize = is3 ? 180 : 215;
-  const fontY = h / 2 + 58;
-  const fontX = w / 2 + (is3 ? 8 : 4);
-  const letterSpacing = is3 ? '-6' : '-2';
+  const fontSize = is3 ? 175 : 210;
+  const fontY = 285;
+  const fontX = w / 2 + (is3 ? 6 : 3);
+  const letterSpacing = is3 ? '-4' : '-1';
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">` +
     `<defs>` +
     `<filter id="srShadow" x="-15%" y="-15%" width="130%" height="130%">` +
-    `<feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="rgba(0,0,0,0.35)"/>` +
+    `<feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="rgba(0,0,0,0.35)"/>` +
     `</filter>` +
     `</defs>` +
     `<!-- Apple Maps Dark Rounded Container with Crisp White Outer Border and Soft Shadow -->` +
-    `<rect x="14" y="14" width="${w - 28}" height="${h - 28}" rx="96" fill="#1c1c1e" stroke="#ffffff" stroke-width="24" stroke-linejoin="round" filter="url(#srShadow)"/>` +
+    `<rect x="16" y="16" width="${w - 32}" height="${h - 32}" rx="96" fill="#1c1c1e" stroke="#ffffff" stroke-width="22" stroke-linejoin="round" filter="url(#srShadow)"/>` +
     `<!-- White George Washington Bust Silhouette -->` +
     `<g transform="translate(${posX.toFixed(2)}, ${posY.toFixed(2)}) scale(${scale})">` +
     `<path fill="#ffffff" d="${GEORGE_PATH}"/>` +
     `</g>` +
-    `<!-- Route Number in Apple SF Pro Bold -->` +
-    `<text x="${fontX.toFixed(1)}" y="${fontY.toFixed(1)}" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="${fontSize}" text-anchor="middle" fill="#1c1c1e" letter-spacing="${letterSpacing}">${cleanRef}</text>` +
+    `<!-- Route Number centered in bust in Apple SF Pro Bold -->` +
+    `<text x="${fontX.toFixed(1)}" y="${fontY}" dominant-baseline="central" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="${fontSize}" text-anchor="middle" fill="#1c1c1e" letter-spacing="${letterSpacing}">${cleanRef}</text>` +
     `</svg>`
   );
 }
@@ -84,10 +84,10 @@ export function generateInterstateSvg(ref) {
   const w = is3 ? 680 : 600;
   const h = 600;
   const sX = is3 ? 680 / 600 : 1;
-  const fontSize = is3 ? 245 : 285;
-  const fontY = 435;
+  const fontSize = is3 ? 240 : 280;
+  const fontY = 370;
   const fontX = w / 2;
-  const letterSpacing = is3 ? '-5' : '-2';
+  const letterSpacing = is3 ? '-4' : '-1';
 
   const pOuter = `M ${80 * sX},38 ` +
     `C ${125 * sX},58 ${165 * sX},66 ${200 * sX},66 ` +
@@ -113,22 +113,22 @@ export function generateInterstateSvg(ref) {
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">` +
     `<defs>` +
     `<filter id="appleShadow" x="-15%" y="-15%" width="130%" height="130%">` +
-    `<feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="rgba(0,0,0,0.35)"/>` +
+    `<feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="rgba(0,0,0,0.35)"/>` +
     `</filter>` +
     `<clipPath id="innerClip">` +
     `<path d="${pInner}"/>` +
     `</clipPath>` +
     `</defs>` +
-    `<!-- Outer White Casing with Shadow -->` +
+    `<!-- Outer White Border with Shadow -->` +
     `<path d="${pOuter}" fill="#ffffff" filter="url(#appleShadow)"/>` +
-    `<!-- Shield Core clipped to inner border -->` +
+    `<!-- Clipped Shield Core -->` +
     `<g clip-path="url(#innerClip)">` +
     `<rect x="0" y="0" width="${w}" height="180" fill="#e3262e"/>` +
     `<path d="M 0,174 Q ${w / 2},186 ${w},174 L ${w},600 L 0,600 Z" fill="#0066d6"/>` +
     `<path d="M 0,174 Q ${w / 2},186 ${w},174" fill="none" stroke="#ffffff" stroke-width="12"/>` +
     `</g>` +
-    `<!-- Bold Route Number in Apple SF Pro Display -->` +
-    `<text x="${fontX}" y="${fontY}" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="${fontSize}" text-anchor="middle" fill="#ffffff" letter-spacing="${letterSpacing}">${cleanRef}</text>` +
+    `<!-- Centered Bold Numerals in Apple SF Pro Display -->` +
+    `<text x="${fontX}" y="${fontY}" dominant-baseline="central" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="${fontSize}" text-anchor="middle" fill="#ffffff" letter-spacing="${letterSpacing}">${cleanRef}</text>` +
     `</svg>`
   );
 }
@@ -249,8 +249,8 @@ function svgToImage(svg, w, h) {
 export function createWaShieldImage(ref) {
   const cleanRef = String(ref).trim().replace(/^(SR|WA)\s*/i, '');
   const is3 = cleanRef.length >= 3;
-  const w = is3 ? 104 : 92;
-  const h = 92;
+  const w = is3 ? 88 : 78;
+  const h = 78;
   const svg = generateWaShieldSvg(cleanRef);
   return svgToImage(svg, w, h);
 }
@@ -261,8 +261,8 @@ export function createWaShieldImage(ref) {
 export function createInterstateShieldImage(ref) {
   const cleanRef = String(ref).trim().replace(/^(I-?|Interstate\s*)/i, '');
   const is3 = cleanRef.length >= 3;
-  const w = is3 ? 112 : 100;
-  const h = 100;
+  const w = is3 ? 94 : 84;
+  const h = 84;
   const svg = generateInterstateSvg(cleanRef);
   return svgToImage(svg, w, h);
 }
@@ -273,8 +273,8 @@ export function createInterstateShieldImage(ref) {
 export function createUsHighwayShieldImage(ref) {
   const cleanRef = String(ref).trim().replace(/^(US|U\.S\.)\s*/i, '');
   const is3 = cleanRef.length >= 3;
-  const w = is3 ? 104 : 92;
-  const h = 92;
+  const w = is3 ? 88 : 78;
+  const h = 78;
   const svg = generateUsHighwaySvg(cleanRef);
   return svgToImage(svg, w, h);
 }
