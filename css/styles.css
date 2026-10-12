@@ -209,6 +209,103 @@ html[data-theme='dark'] .compass {
 .compass-rose { width: 100%; height: 100%; }
 .compass-rose svg { width: 100%; height: 100%; }
 
+/* ---------- Apple Maps Flyover 3D Cinematic HUD ---------- */
+.flyover-hud {
+  position: fixed;
+  top: calc(var(--sat) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(25px) saturate(190%);
+  -webkit-backdrop-filter: blur(25px) saturate(190%);
+  border: 0.5px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.08);
+  max-width: calc(100vw - 32px);
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+html[data-theme='dark'] .flyover-hud {
+  background: rgba(28, 28, 30, 0.90);
+  border: 0.5px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.flyover-hud.hidden {
+  opacity: 0;
+  transform: translate(-50%, -16px) scale(0.92);
+  pointer-events: none;
+}
+.flyover-hud-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.flyover-hud-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #007aff;
+  background: rgba(0, 122, 255, 0.12);
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+html[data-theme='dark'] .flyover-hud-badge {
+  background: rgba(10, 132, 255, 0.2);
+  color: #0a84ff;
+}
+.flyover-hud-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+.flyover-stop-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--label);
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.flyover-stop-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.flyover-stop-btn:active {
+  transform: scale(0.94);
+  background: rgba(0, 0, 0, 0.14);
+}
+html[data-theme='dark'] .flyover-stop-btn {
+  background: rgba(255, 255, 255, 0.12);
+}
+html[data-theme='dark'] .flyover-stop-btn:active {
+  background: rgba(255, 255, 255, 0.20);
+}
+
+
 /* ---------- Location puck (blue dot with a tiny pig snout) ---------- */
 .puck { width: 24px; height: 24px; position: relative; }
 .puck-dot {
@@ -1071,66 +1168,191 @@ html[data-theme='dark'] .transport-mode-btn.active {
   margin: 10px 0 12px;
 }
 
-/* ---------- Active Waypoint Strip ---------- */
-.waypoint-strip {
+/* ---------- Multi-Stop Waypoints Section (Apple Maps iOS 18) ---------- */
+.waypoints-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 149, 0, 0.08);
+  border: 1px solid rgba(255, 149, 0, 0.24);
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin: 4px 0 12px;
+  transition: opacity 0.2s ease;
+}
+html[data-theme='dark'] .waypoints-section {
+  background: rgba(255, 149, 0, 0.12);
+  border-color: rgba(255, 149, 0, 0.32);
+}
+.waypoints-section.hidden {
+  display: none !important;
+}
+.waypoints-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  background: rgba(255, 149, 0, 0.12);
-  border: 1px solid rgba(255, 149, 0, 0.3);
-  border-radius: 12px;
-  padding: 8px 12px;
-  margin: 4px 0 12px;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 0.5px solid rgba(255, 149, 0, 0.18);
 }
-.waypoint-strip.hidden {
-  display: none !important;
-}
-.waypoint-strip-left {
+.waypoints-header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
+  gap: 8px;
 }
-.waypoint-badge-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+.waypoints-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--label);
+}
+.waypoints-detour-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ff9500;
+  background: rgba(255, 149, 0, 0.14);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.waypoints-hint {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--label3);
+}
+.waypoints-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.waypoint-item-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border-radius: 10px;
+  padding: 8px 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--border);
+  position: relative;
+  touch-action: pan-y;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.waypoint-item-card.dragging {
+  opacity: 0.45;
+  transform: scale(0.98);
+}
+.waypoint-item-card.drag-over {
+  border-color: #007aff;
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.35);
+  transform: translateY(-2px);
+}
+.waypoint-reorder-arrows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.waypoint-move-btn {
+  width: 22px;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  border-radius: 4px;
+  color: var(--label2);
+  font-size: 9px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  touch-action: manipulation;
+}
+.waypoint-move-btn:disabled {
+  opacity: 0.2;
+  cursor: default;
+  pointer-events: none;
+}
+.waypoint-move-btn:not(:disabled):active {
+  background: #007aff;
+  color: #fff;
+}
+html[data-theme='dark'] .waypoint-move-btn {
+  background: rgba(255, 255, 255, 0.08);
+}
+.waypoint-seq-badge {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
   background: #ff9500;
   color: #fff;
   display: grid;
   place-items: center;
-  font-size: 15px;
   flex-shrink: 0;
+  font-size: 15px;
 }
-.waypoint-strip-info {
+.waypoint-seq-badge .waypoint-num {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1c1c1e;
+  color: #ffffff;
+  border: 1.5px solid #ffffff;
+  font-size: 9px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.waypoint-item-info {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
 }
-.waypoint-strip-name {
-  font-size: 14px;
+.waypoint-item-name {
+  font-size: 13.5px;
   font-weight: 700;
   color: var(--label);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.waypoint-strip-sub {
-  font-size: 12px;
+.waypoint-item-sub {
+  font-size: 11.5px;
   font-weight: 600;
   color: #ff9500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.waypoint-remove-btn {
+.waypoint-drag-handle {
+  width: 28px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--label3);
+  cursor: grab;
+  touch-action: none;
+}
+.waypoint-drag-handle:active {
+  cursor: grabbing;
+}
+.waypoint-drag-handle svg {
+  width: 18px;
+  height: 18px;
+}
+.waypoint-item-remove {
   width: 26px;
   height: 26px;
   background: rgba(0, 0, 0, 0.08);
   color: var(--label2);
+  flex-shrink: 0;
 }
-html[data-theme='dark'] .waypoint-remove-btn {
+html[data-theme='dark'] .waypoint-item-remove {
   background: rgba(255, 255, 255, 0.12);
 }
+
 
 /* ---------- Route Tools: Add Stop & Leave By Clock ---------- */
 .route-tools-row {
@@ -2003,13 +2225,33 @@ html[data-theme='dark'] .waypoint-remove-btn {
 }
 .dest-pin.waypoint-pin {
   background: #ff9500;
+  position: relative;
+}
+.dest-pin.waypoint-pin .waypoint-pin-seq {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #1c1c1e;
+  color: #ffffff;
+  border: 1.5px solid #ffffff;
+  font-size: 9.5px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  transform: rotate(45deg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  z-index: 3;
 }
 .waypoint-pin-icon {
   transform: rotate(45deg);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
   display: inline-block;
 }
+
 .dest-shadow {
   position: absolute;
   bottom: 0;

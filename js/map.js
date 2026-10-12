@@ -39,7 +39,13 @@ export class MapController {
     this.tokenErrorShown = false;
     this.orbiting = false;
     this.orbitPending = false;
+    this.flyoverActive = false;
+    this.flyoverCenter = null;
+    this.flyoverName = null;
+    this.waypointMarkers = [];
+    this.waypoints = [];
   }
+
 
   get styleUrl() {
     return settings.mapType === 'satellite' ? STYLE_SATELLITE : STYLE_STANDARD;
@@ -88,7 +94,10 @@ export class MapController {
     m.on('rotatestart', (e) => {
       if (e.originalEvent && this.locateMode === 'heading') this.setLocateMode('follow', { keepBearing: true });
     });
-    ['touchstart', 'mousedown', 'wheel'].forEach((ev) => m.on(ev, () => this.stopOrbit()));
+    ['touchstart', 'mousedown', 'wheel', 'dragstart'].forEach((ev) => m.on(ev, () => {
+      if (this.flyoverActive) this.stopFlyover();
+      else this.stopOrbit();
+    }));
     m.on('click', () => this.cb.onMapTap?.());
 
     // Generate authentic shields on demand (Apple Maps Interstate & Washington State Route)
@@ -804,11 +813,55 @@ export class MapController {
     step();
   }
 
+  startFlyoverOrbit(centerCoords) {
+    if (this.orbiting) return;
+    this.orbiting = true;
+    this.flyoverActive = true;
+    this.flyoverCenter = centerCoords;
+    const startTime = performance.now();
+    const basePitch = 64.5;
+    const baseZoom = 16.6;
+
+    const step = (now) => {
+      if (!this.orbiting || !this.map || !this.flyoverCenter) return;
+      const elapsed = (now - startTime) / 1000;
+      // Gentle sinusoidal pitch oscillation between 62° and 67°
+      const pitch = basePitch + Math.sin(elapsed * 0.25) * 2.5;
+      // Gentle altitude breathing
+      const zoom = baseZoom + Math.cos(elapsed * 0.18) * 0.12;
+      const bearing = (this.map.getBearing() + 0.065) % 360;
+
+      this.map.jumpTo({
+        center: this.flyoverCenter,
+        bearing,
+        pitch,
+        zoom,
+      });
+      this.orbitRaf = requestAnimationFrame(step);
+    };
+    this.orbitRaf = requestAnimationFrame(step);
+    this.cb.onFlyoverStateChange?.(true, {
+      name: this.flyoverName,
+      coords: this.flyoverCenter,
+    });
+  }
+
   stopOrbit() {
     this.orbitPending = false;
     this.orbiting = false;
     cancelAnimationFrame(this.orbitRaf);
   }
+
+  stopFlyover() {
+    this.stopOrbit();
+    if (this.flyoverActive) {
+      this.flyoverActive = false;
+      this.flyoverCenter = null;
+      this.flyoverName = null;
+      this.cb.onFlyoverStateChange?.(false);
+    }
+  }
+
 
   resetNorth() {
     if (!this.map) return;
@@ -1089,31 +1142,61 @@ export class MapController {
     }
   }
 
-  setWaypoint(coords, info = {}) {
-    if (!this.map || !coords) return;
-    const [lng, lat] = coords;
-    this.waypoint = { lng, lat, info };
-    if (!this.waypointMarker) {
+  setWaypoints(waypointsArray = []) {
+    this.clearWaypoints();
+    if (!this.map || !Array.isArray(waypointsArray)) return;
+    this.waypoints = waypointsArray;
+    this.waypointMarkers = [];
+
+    waypointsArray.forEach((wp, idx) => {
+      const coords = wp.coordinates || (wp.lng != null && wp.lat != null ? [wp.lng, wp.lat] : null);
+      if (!coords) return;
       const el = document.createElement('div');
       el.className = 'apple-dest-marker waypoint-marker';
-      const icon = info.icon || '☕';
-      el.innerHTML = `<div class="dest-pin waypoint-pin"><span class="waypoint-pin-icon">${icon}</span></div><div class="dest-shadow"></div>`;
-      this.waypointMarker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-        .setLngLat([lng, lat])
+      const icon = wp.icon || '📍';
+      const stopNum = idx + 1;
+      el.innerHTML = `
+        <div class="dest-pin waypoint-pin">
+          <span class="waypoint-pin-seq">${stopNum}</span>
+          <span class="waypoint-pin-icon">${icon}</span>
+        </div>
+        <div class="dest-shadow"></div>
+      `;
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat(coords)
         .addTo(this.map);
+      this.waypointMarkers.push(marker);
+    });
+
+    if (this.waypoints.length > 0) {
+      const first = this.waypoints[0];
+      const c = first.coordinates || [first.lng, first.lat];
+      this.waypoint = { lng: c[0], lat: c[1], info: first };
     } else {
-      this.waypointMarker.setLngLat([lng, lat]);
-      const iconEl = this.waypointMarker.getElement().querySelector('.waypoint-pin-icon');
-      if (iconEl && info.icon) iconEl.textContent = info.icon;
+      this.waypoint = null;
     }
   }
 
-  clearWaypoint() {
+  setWaypoint(coords, info = {}) {
+    if (!coords) return;
+    this.setWaypoints([{ coordinates: coords, ...info }]);
+  }
+
+  clearWaypoints() {
+    if (this.waypointMarkers && this.waypointMarkers.length > 0) {
+      this.waypointMarkers.forEach((m) => m.remove());
+      this.waypointMarkers = [];
+    }
     if (this.waypointMarker) {
       this.waypointMarker.remove();
       this.waypointMarker = null;
     }
+    this.waypoints = [];
     this.waypoint = null;
+  }
+
+  clearWaypoint() {
+    this.clearWaypoints();
   }
 
   clearDestination() {
@@ -1121,14 +1204,14 @@ export class MapController {
       this.destMarker.remove();
       this.destMarker = null;
     }
-    this.clearWaypoint();
+    this.clearWaypoints();
     this.destination = null;
     this.clearRoute();
   }
 
   flyToDestination(coords) {
     if (!this.map || !coords) return;
-    this.stopOrbit();
+    this.stopFlyover();
     this.setLocateMode('off');
     this.map.flyTo({
       center: coords,
@@ -1139,26 +1222,35 @@ export class MapController {
     });
   }
 
-  flyoverDestination(coords) {
+  flyoverDestination(coords, { placeName = 'Destination' } = {}) {
     if (!this.map || !coords) return;
-    this.stopOrbit();
+    this.stopFlyover();
     this.setLocateMode('off');
     this.is3D = true;
     this.applyTerrain();
     this.cb.on3D?.(true);
     this.orbitPending = true;
+    this.flyoverCenter = coords;
+    this.flyoverName = placeName;
+    this.cb.onFlyoverStateChange?.(true, { name: placeName, coords });
+
     this.map.flyTo({
       center: coords,
-      zoom: 16.5,
+      zoom: 16.6,
       pitch: 65,
-      bearing: this.map.getBearing() - 40,
-      duration: 2000,
+      bearing: this.map.getBearing() - 35,
+      duration: 2200,
+      essential: true,
+      curve: 1.4,
       padding: this.pad(),
     });
     this.map.once('moveend', () => {
-      if (this.orbitPending) this.startOrbit();
+      if (this.orbitPending && this.flyoverCenter) {
+        this.startFlyoverOrbit(this.flyoverCenter);
+      }
     });
   }
+
 
   showRoutes(routes, selectedIndex = 0) {
     this.currentRoutes = routes || [];
@@ -1214,10 +1306,16 @@ export class MapController {
     if (!this.map || !startCoords || !destCoords) return;
     const bounds = new mapboxgl.LngLatBounds();
     bounds.extend(startCoords);
-    if (this.waypoint && this.waypoint.lng && this.waypoint.lat) {
+    if (Array.isArray(this.waypoints) && this.waypoints.length > 0) {
+      this.waypoints.forEach((wp) => {
+        const coords = wp.coordinates || (wp.lng != null && wp.lat != null ? [wp.lng, wp.lat] : null);
+        if (coords) bounds.extend(coords);
+      });
+    } else if (this.waypoint && this.waypoint.lng && this.waypoint.lat) {
       bounds.extend([this.waypoint.lng, this.waypoint.lat]);
     }
     bounds.extend(destCoords);
+
     this.map.fitBounds(bounds, {
       padding: {
         top: 90,

@@ -45,23 +45,44 @@ export class NavigationController {
     this.hazardAlertEl = document.getElementById('navHazardAlert');
   }
 
-  start(route, destination, waypoint = null) {
+  start(route, destination, waypointsParam = null) {
     if (!route || !route.steps || route.steps.length === 0) return;
     this.isActive = true;
     this.route = route;
     this.destination = destination;
-    this.waypoint = waypoint;
+    this.waypoints = Array.isArray(waypointsParam)
+      ? [...waypointsParam]
+      : (waypointsParam ? [waypointsParam] : []);
+    this.waypoint = this.waypoints[0] || null;
     this.waypointReached = false;
+    this.waypointArrivals = new Set();
+    this.waypointStepIndices = [];
     this.steps = this.ensureSteps(route);
     this.currentStepIndex = 0;
 
-    if (this.waypoint && route.legs && route.legs.length > 1) {
-      this.waypointStepIndex = Math.max(0, (route.legs[0].steps?.length || 1) - 1);
-    } else if (this.waypoint) {
-      this.waypointStepIndex = Math.max(0, Math.floor(this.steps.length / 2));
+    if (this.waypoints.length > 0 && route.legs && route.legs.length > 1) {
+      let accumulated = 0;
+      for (let i = 0; i < this.waypoints.length; i++) {
+        const legSteps = route.legs[i]?.steps?.length || 1;
+        accumulated += legSteps;
+        this.waypointStepIndices.push({
+          waypoint: this.waypoints[i],
+          index: i,
+          stepIndex: Math.max(0, accumulated - 1),
+        });
+      }
+      this.waypointStepIndex = this.waypointStepIndices[0]?.stepIndex ?? null;
+    } else if (this.waypoints.length > 0) {
+      this.waypointStepIndices.push({
+        waypoint: this.waypoints[0],
+        index: 0,
+        stepIndex: Math.max(0, Math.floor(this.steps.length / 2)),
+      });
+      this.waypointStepIndex = this.waypointStepIndices[0].stepIndex;
     } else {
       this.waypointStepIndex = null;
     }
+
 
     document.body.classList.add('in-navigation');
 
@@ -175,11 +196,20 @@ export class NavigationController {
       this.announceCurrentStep();
       this.onStepChange?.(this.currentStepIndex);
 
-      // Check waypoint arrival
-      if (this.waypoint && !this.waypointReached && this.waypointStepIndex != null && this.currentStepIndex >= this.waypointStepIndex) {
+      // Check multi-stop waypoint arrivals
+      if (this.waypointStepIndices && this.waypointStepIndices.length > 0) {
+        for (const entry of this.waypointStepIndices) {
+          if (!this.waypointArrivals.has(entry.index) && this.currentStepIndex >= entry.stepIndex) {
+            this.waypointArrivals.add(entry.index);
+            if (entry.index === 0) this.waypointReached = true;
+            this.onWaypointArrival?.(entry.waypoint, entry.index);
+          }
+        }
+      } else if (this.waypoint && !this.waypointReached && this.waypointStepIndex != null && this.currentStepIndex >= this.waypointStepIndex) {
         this.waypointReached = true;
-        this.onWaypointArrival?.(this.waypoint);
+        this.onWaypointArrival?.(this.waypoint, 0);
       }
+
 
       // Check final arrival
       if (this.currentStepIndex === this.steps.length - 1) {

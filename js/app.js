@@ -76,7 +76,19 @@ const mapCtl = new MapController('map', {
   onMapTap: () => {
     if (sheet.state !== 'peek') sheet.snapTo('peek');
   },
+  onFlyoverStateChange: (isActive, info) => {
+    const hud = $('#flyoverHud');
+    const hudTitle = $('#flyoverHudTitle');
+    if (isActive) {
+      if (hud) hud.classList.remove('hidden');
+      if (hudTitle) hudTitle.textContent = info?.name || 'Destination';
+      if (sheet.state !== 'peek') sheet.snapTo('peek');
+    } else {
+      if (hud) hud.classList.add('hidden');
+    }
+  },
 });
+
 
 function startMap() {
   if (typeof mapboxgl === 'undefined') {
@@ -241,6 +253,7 @@ $('[data-action="freeroam"]').addEventListener('click', () => {
 // ---------- Panes & Search State ----------
 let activePane = 'home';
 let selectedDestination = null;
+let currentWaypoints = [];
 let currentWaypoint = null;
 let activeLeaveAlarm = null;
 let leaveAlarmTimer = null;
@@ -381,9 +394,11 @@ async function performSearch(query) {
 function selectPlace(place) {
   saveRecentSearch(place);
   selectedDestination = place;
+  currentWaypoints = [];
   currentWaypoint = null;
-  mapCtl.clearWaypoint();
-  renderWaypointStripUI();
+  mapCtl.clearWaypoints();
+  renderWaypointsUI();
+
   updateLeaveByButtonUI();
   currentRoute = null;
 
@@ -419,7 +434,7 @@ function selectPlace(place) {
 }
 
 // Route preview & Directions
-async function startDirections(dest, { waypoint = currentWaypoint, mode = currentTransportMode } = {}) {
+async function startDirections(dest, { waypoints = currentWaypoints, waypoint, mode = currentTransportMode } = {}) {
   if (!dest) return;
   currentTransportMode = mode;
   updateTransportModeUI(currentTransportMode);
@@ -449,31 +464,34 @@ async function startDirections(dest, { waypoint = currentWaypoint, mode = curren
   }
 
   try {
-    currentWaypoint = waypoint;
-    const waypoints = currentWaypoint ? [currentWaypoint.coordinates] : [];
+    if (waypoint !== undefined) {
+      currentWaypoints = waypoint ? [waypoint] : [];
+    } else if (waypoints !== undefined) {
+      currentWaypoints = Array.isArray(waypoints) ? [...waypoints] : (waypoints ? [waypoints] : []);
+    }
+    currentWaypoint = currentWaypoints[0] || null;
+
+    const wpCoords = currentWaypoints.map((w) => w.coordinates);
     const routes = await fetchRoutes(start, dest.coordinates, {
       token: settings.token,
       avoidTolls: settings.avoidTolls,
-      waypoints,
+      waypoints: wpCoords,
       profile: currentTransportMode,
     });
     currentRoutes = routes;
     selectedRouteIndex = 0;
     currentRoute = routes[0];
 
-    if (currentWaypoint) {
-      mapCtl.setWaypoint(currentWaypoint.coordinates, {
-        icon: currentWaypoint.icon || '☕',
-        name: currentWaypoint.name,
-      });
+    if (currentWaypoints.length > 0) {
+      mapCtl.setWaypoints(currentWaypoints);
     } else {
-      mapCtl.clearWaypoint();
+      mapCtl.clearWaypoints();
     }
 
     mapCtl.showRoutes(routes, 0);
     mapCtl.fitRouteBounds(start, dest.coordinates);
 
-    renderWaypointStripUI();
+    renderWaypointsUI();
     renderRouteOptionsUI();
     updateRouteCardUI(currentRoute);
     updateLeaveByButtonUI();
@@ -500,9 +518,14 @@ function updateRouteCardUI(route) {
   $('#routeArriveTime').textContent = formatArrivalTime(route.durationSec);
   $('#routeDistance').textContent = formatDistanceMeters(route.distanceMeters);
 
-  if (currentWaypoint) {
-    $('#routeTrafficBadge').textContent = `Via stop at ${currentWaypoint.name} · Live traffic`;
+  if (currentWaypoints.length > 0) {
+    if (currentWaypoints.length === 1) {
+      $('#routeTrafficBadge').textContent = `Via stop at ${currentWaypoints[0].name} · Live traffic`;
+    } else {
+      $('#routeTrafficBadge').textContent = `Via ${currentWaypoints.length} stops (${currentWaypoints.map((w) => w.name).join(' → ')}) · Live traffic`;
+    }
   } else if (route.isFastest) {
+
     $('#routeTrafficBadge').textContent = settings.avoidTolls
       ? 'Toll-free route'
       : `${route.summary} · Fastest route with live traffic`;
@@ -775,10 +798,16 @@ $('#destClose').addEventListener('click', () => {
 
 $('#btnFlyoverDest').addEventListener('click', () => {
   if (!selectedDestination) return;
-  mapCtl.flyoverDestination(selectedDestination.coordinates);
-  toast(`🐷 3D Flyover: Orbiting ${selectedDestination.name}`, 3200);
+  mapCtl.flyoverDestination(selectedDestination.coordinates, { placeName: selectedDestination.name });
   sheet.snapTo('peek');
+  toast(`✈️ 3D Flyover: Sweeping around ${selectedDestination.name} 🐷`, 3200);
 });
+
+$('#btnStopFlyover')?.addEventListener('click', () => {
+  mapCtl.stopFlyover();
+  toast('Flyover stopped');
+});
+
 
 $('#btnDirections').addEventListener('click', () => {
   if (selectedDestination) startDirections(selectedDestination);
@@ -832,10 +861,11 @@ $$('#routeTransportBar .transport-mode-btn').forEach((btn) => {
 
 // Route Preview buttons
 $('#routeClose').addEventListener('click', () => {
-  if (currentWaypoint) {
+  if (currentWaypoints.length > 0) {
+    currentWaypoints = [];
     currentWaypoint = null;
-    mapCtl.clearWaypoint();
-    renderWaypointStripUI();
+    mapCtl.clearWaypoints();
+    renderWaypointsUI();
   }
   mapCtl.clearRoute();
   currentRoute = null;
@@ -846,10 +876,11 @@ $('#routeClose').addEventListener('click', () => {
 });
 
 $('#btnEndRoute').addEventListener('click', () => {
-  if (currentWaypoint) {
+  if (currentWaypoints.length > 0) {
+    currentWaypoints = [];
     currentWaypoint = null;
-    mapCtl.clearWaypoint();
-    renderWaypointStripUI();
+    mapCtl.clearWaypoints();
+    renderWaypointsUI();
   }
   mapCtl.clearRoute();
   currentRoute = null;
@@ -869,17 +900,18 @@ const navCtl = new NavigationController({
   onArrival: (dest) => {
     toast(`🎉 Oink! You have arrived at ${dest?.name || 'your destination'}!`, 5000);
   },
-  onWaypointArrival: (wp) => {
-    toast(`☕ Stop Reached: ${wp.name}! Take a breather 🐷`, 6000);
+  onWaypointArrival: (wp, idx = 0) => {
+    toast(`☕ Arrived at Stop ${idx + 1}: ${wp.name}! Take a breather 🐷`, 6000);
   },
   onStepChange: () => {},
 });
 
 $('#btnStartDrive').addEventListener('click', () => {
   if (!currentRoute || !selectedDestination) return;
-  navCtl.start(currentRoute, selectedDestination, currentWaypoint);
+  navCtl.start(currentRoute, selectedDestination, currentWaypoints);
   toast(`🚗 Turn-by-Turn Navigation Started! 🐷`, 2500);
 });
+
 
 $('#btnNavEnd').addEventListener('click', () => {
   navCtl.stop();
@@ -1283,27 +1315,148 @@ function getRouteMidpoint() {
   return [-122.3321, 47.6062];
 }
 
-function renderWaypointStripUI() {
-  const strip = $('#waypointStrip');
-  const iconEl = $('#waypointBadgeIcon');
-  const nameEl = $('#waypointStripName');
-  const subEl = $('#waypointStripSub');
+function renderWaypointsUI() {
+  const section = $('#waypointsSection');
+  const countTitle = $('#waypointsCountTitle');
+  const detourBadge = $('#waypointsTotalDetour');
+  const listEl = $('#waypointsList');
   const addBtnText = $('#addStopBtnText');
   const addBtnTag = $('#addStopTag');
 
-  if (!strip) return;
+  if (!section) return;
 
-  if (currentWaypoint) {
-    strip.classList.remove('hidden');
-    if (iconEl) iconEl.textContent = currentWaypoint.icon || '📍';
-    if (nameEl) nameEl.textContent = currentWaypoint.name || 'Added Stop';
-    const detourText = currentWaypoint.detourMins ? `+${currentWaypoint.detourMins} min detour` : 'Detour added';
-    if (subEl) subEl.textContent = `Stop along route · ${detourText}`;
-    if (addBtnText) addBtnText.textContent = 'Change Stop';
-    if (addBtnTag) addBtnTag.textContent = currentWaypoint.name;
+  if (currentWaypoints.length > 0) {
+    section.classList.remove('hidden');
+    const n = currentWaypoints.length;
+    if (countTitle) countTitle.textContent = `${n} ${n === 1 ? 'Stop' : 'Stops'} along route`;
+    const totalDetour = currentWaypoints.reduce((sum, w) => sum + (w.detourMins || 2), 0);
+    if (detourBadge) detourBadge.textContent = `+${totalDetour} min detour`;
+
+    if (listEl) {
+      listEl.innerHTML = '';
+      currentWaypoints.forEach((wp, idx) => {
+        const card = document.createElement('div');
+        card.className = 'waypoint-item-card';
+        card.dataset.id = wp.id || `wp-${idx}`;
+        card.dataset.index = String(idx);
+        card.draggable = true;
+
+        const detourText = wp.detourMins ? `+${wp.detourMins} min detour` : 'Detour added';
+        const addressText = wp.shortAddress || wp.fullAddress || '';
+        const subInfo = addressText ? `${detourText} · ${addressText}` : detourText;
+
+        card.innerHTML = `
+          <div class="waypoint-reorder-arrows">
+            <button class="waypoint-move-btn btn-move-up" type="button" data-dir="-1" title="Move up" ${idx === 0 ? 'disabled' : ''} aria-label="Move stop up">▲</button>
+            <button class="waypoint-move-btn btn-move-down" type="button" data-dir="1" title="Move down" ${idx === n - 1 ? 'disabled' : ''} aria-label="Move stop down">▼</button>
+          </div>
+          <div class="waypoint-seq-badge">
+            <span class="waypoint-num">${idx + 1}</span>
+            <span class="waypoint-ico">${wp.icon || '📍'}</span>
+          </div>
+          <div class="waypoint-item-info">
+            <span class="waypoint-item-name">${escapeHtml(wp.name || 'Added Stop')}</span>
+            <span class="waypoint-item-sub">${escapeHtml(subInfo)}</span>
+          </div>
+          <div class="waypoint-drag-handle" title="Drag to reorder" aria-label="Drag handle">
+            <svg viewBox="0 0 24 24"><path d="M4 9h16M4 15h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+          </div>
+          <button class="circle-close waypoint-item-remove" type="button" aria-label="Remove stop">
+            <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+          </button>
+        `;
+
+        // Arrow button click listeners
+        const upBtn = card.querySelector('.btn-move-up');
+        const downBtn = card.querySelector('.btn-move-down');
+        const removeBtn = card.querySelector('.waypoint-item-remove');
+
+        upBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          moveWaypoint(idx, idx - 1);
+        });
+
+        downBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          moveWaypoint(idx, idx + 1);
+        });
+
+        removeBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          removeWaypoint(idx);
+        });
+
+        // HTML5 drag and drop for desktop
+        card.addEventListener('dragstart', (e) => {
+          card.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(idx));
+        });
+
+        card.addEventListener('dragend', () => {
+          card.classList.remove('dragging');
+          listEl.querySelectorAll('.waypoint-item-card').forEach((c) => c.classList.remove('drag-over'));
+        });
+
+        card.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          card.classList.add('drag-over');
+        });
+
+        card.addEventListener('dragleave', () => {
+          card.classList.remove('drag-over');
+        });
+
+        card.addEventListener('drop', (e) => {
+          e.preventDefault();
+          card.classList.remove('drag-over');
+          const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+          if (!Number.isNaN(fromIdx) && fromIdx !== idx) {
+            moveWaypoint(fromIdx, idx);
+          }
+        });
+
+        // Touch drag reordering for mobile Safari (iPhone 16 Pro)
+        const handle = card.querySelector('.waypoint-drag-handle');
+        if (handle) {
+          handle.addEventListener('touchstart', () => {
+            card.classList.add('dragging');
+          }, { passive: true });
+
+          handle.addEventListener('touchmove', (e) => {
+            const touch = e.touches[0];
+            if (!touch) return;
+            const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+            const targetCard = elemBelow?.closest('.waypoint-item-card');
+            listEl.querySelectorAll('.waypoint-item-card').forEach((c) => {
+              c.classList.toggle('drag-over', c === targetCard && c !== card);
+            });
+          }, { passive: true });
+
+          handle.addEventListener('touchend', () => {
+            card.classList.remove('dragging');
+            const targetCard = listEl.querySelector('.waypoint-item-card.drag-over');
+            listEl.querySelectorAll('.waypoint-item-card').forEach((c) => c.classList.remove('drag-over'));
+            if (targetCard) {
+              const targetIdx = parseInt(targetCard.dataset.index, 10);
+              if (!Number.isNaN(targetIdx) && targetIdx !== idx) {
+                moveWaypoint(idx, targetIdx);
+              }
+            }
+          });
+        }
+
+        listEl.appendChild(card);
+      });
+    }
+
+    if (addBtnText) addBtnText.textContent = '+ Add Stop';
+    if (addBtnTag) addBtnTag.textContent = `${n} stop${n > 1 ? 's' : ''} added`;
     $('#btnAddStop')?.classList.add('active');
   } else {
-    strip.classList.add('hidden');
+    section.classList.add('hidden');
+    if (listEl) listEl.innerHTML = '';
     if (addBtnText) addBtnText.textContent = 'Add Stop';
     const isEv = settings.car !== 'gas';
     if (addBtnTag) addBtnTag.textContent = isEv ? '⚡ ☕ 🍔 🅿️' : '⛽ ☕ 🍔 🅿️';
@@ -1311,16 +1464,44 @@ function renderWaypointStripUI() {
   }
 }
 
-$('#btnRemoveWaypoint')?.addEventListener('click', async (e) => {
-  e.stopPropagation();
-  currentWaypoint = null;
-  mapCtl.clearWaypoint();
-  renderWaypointStripUI();
-  if (selectedDestination) {
-    await startDirections(selectedDestination, { waypoint: null });
-    toast('Stop removed · Direct route restored 🐷');
+// Backward compatibility alias
+const renderWaypointStripUI = renderWaypointsUI;
+
+async function moveWaypoint(fromIdx, toIdx) {
+  if (fromIdx < 0 || fromIdx >= currentWaypoints.length || toIdx < 0 || toIdx >= currentWaypoints.length || fromIdx === toIdx) return;
+  const item = currentWaypoints.splice(fromIdx, 1)[0];
+  currentWaypoints.splice(toIdx, 0, item);
+  currentWaypoint = currentWaypoints[0] || null;
+  if (navigator.vibrate) {
+    try { navigator.vibrate(15); } catch {}
   }
-});
+  renderWaypointsUI();
+  if (selectedDestination) {
+    toast(`🐷 Stops reordered: ${currentWaypoints.map((w, i) => `${i + 1}. ${w.name}`).join(' → ')}`);
+    await startDirections(selectedDestination, { waypoints: currentWaypoints });
+  }
+}
+
+async function removeWaypoint(idx) {
+  if (idx < 0 || idx >= currentWaypoints.length) return;
+  const removed = currentWaypoints.splice(idx, 1)[0];
+  currentWaypoint = currentWaypoints[0] || null;
+  if (navigator.vibrate) {
+    try { navigator.vibrate(12); } catch {}
+  }
+  renderWaypointsUI();
+  if (selectedDestination) {
+    if (currentWaypoints.length > 0) {
+      toast(`Removed stop: ${removed.name} · Updating route 🐷`);
+      await startDirections(selectedDestination, { waypoints: currentWaypoints });
+    } else {
+      mapCtl.clearWaypoints();
+      toast('All stops removed · Direct route restored 🐷');
+      await startDirections(selectedDestination, { waypoints: [] });
+    }
+  }
+}
+
 
 function openAddStopModal() {
   const isEv = settings.car !== 'gas';
@@ -1371,15 +1552,15 @@ async function fetchAndRenderStops(categoryOrQuery) {
     return;
   }
 
-  const start = mapCtl.pos
-    ? [mapCtl.pos.lng, mapCtl.pos.lat]
-    : settings.lastLocation
-    ? [settings.lastLocation.lng, settings.lastLocation.lat]
-    : mid;
+  const lastPoint = currentWaypoints.length > 0
+    ? currentWaypoints[currentWaypoints.length - 1].coordinates
+    : (mapCtl.pos
+      ? [mapCtl.pos.lng, mapCtl.pos.lat]
+      : (settings.lastLocation ? [settings.lastLocation.lng, settings.lastLocation.lat] : mid));
   const dest = selectedDestination?.coordinates || mid;
 
   const withDetours = places.map((p) => {
-    const detour = calculateDetourEstimate(start, p.coordinates, dest);
+    const detour = calculateDetourEstimate(lastPoint, p.coordinates, dest);
     return { ...p, detour };
   });
 
@@ -1436,10 +1617,16 @@ function renderStopCandidates(stops) {
 }
 
 async function applyWaypointStop(stop) {
-  currentWaypoint = stop;
-  await startDirections(selectedDestination, { waypoint: currentWaypoint });
-  toast(`🐷 Added stop: ${stop.name} (+${stop.detourMins} min detour)`);
+  const wp = {
+    ...stop,
+    id: 'wp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+  };
+  currentWaypoints.push(wp);
+  currentWaypoint = currentWaypoints[0];
+  await startDirections(selectedDestination, { waypoints: currentWaypoints });
+  toast(`🐷 Added stop: ${wp.name} (${currentWaypoints.length} stop${currentWaypoints.length > 1 ? 's' : ''} total)`);
 }
+
 
 $('#btnAddStop')?.addEventListener('click', () => {
   if (!selectedDestination || !currentRoute) {
