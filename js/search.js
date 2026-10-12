@@ -226,12 +226,12 @@ export function getCategoryIconSvg(category) {
     case 'nature':
     case 'park':
       return {
-        bg: '#30b0c7',
+        bg: '#34c759',
         svg: '<svg viewBox="0 0 24 24"><path d="M12 3l4 6h-3l4 6h-3v4h-4v-4H7l4-6H8l4-6z" fill="#fff"/></svg>',
       };
     case 'shopping':
       return {
-        bg: '#ff2d55',
+        bg: '#ff9500',
         svg: '<svg viewBox="0 0 24 24"><path d="M6 7l1-3h10l1 3M4 7h16v13a1 1 0 01-1 1H5a1 1 0 01-1-1V7zm5 4a3 3 0 006 0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>',
       };
     case 'landmark':

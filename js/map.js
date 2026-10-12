@@ -6,6 +6,10 @@ import {
   COMMON_WA_ROUTES,
   createInterstateShieldImage,
   COMMON_INTERSTATES,
+  createUsHighwayShieldImage,
+  COMMON_US_HIGHWAYS,
+  createApplePoiImage,
+  APPLE_POI_DEFS,
 } from './waShield.js';
 
 const STYLE_STANDARD = 'mapbox://styles/mapbox/standard';
@@ -105,6 +109,22 @@ export class MapController {
           if (!m.hasImage(id)) m.addImage(id, img, { pixelRatio: 2 });
         } catch (err) {
           console.warn('[shields] failed to generate Interstate shield for', id, err);
+        }
+      } else if (id.startsWith('us-hwy-')) {
+        const ref = id.slice(7);
+        try {
+          const { img } = await createUsHighwayShieldImage(ref);
+          if (!m.hasImage(id)) m.addImage(id, img, { pixelRatio: 2 });
+        } catch (err) {
+          console.warn('[shields] failed to generate US Highway shield for', id, err);
+        }
+      } else if (id.startsWith('apple-poi-')) {
+        const cat = id.slice(10);
+        try {
+          const { img } = await createApplePoiImage(cat);
+          if (!m.hasImage(id)) m.addImage(id, img, { pixelRatio: 2 });
+        } catch (err) {
+          console.warn('[poi] failed to generate Apple POI image for', id, err);
         }
       }
     });
@@ -397,6 +417,28 @@ export class MapController {
       }
     });
 
+    // Pre-cache prominent US Highways
+    COMMON_US_HIGHWAYS.forEach(async (ref) => {
+      const id = `us-hwy-${ref}`;
+      if (!m.hasImage(id)) {
+        try {
+          const { img } = await createUsHighwayShieldImage(ref);
+          if (!m.hasImage(id)) m.addImage(id, img, { pixelRatio: 2 });
+        } catch { /* ignore */ }
+      }
+    });
+
+    // Pre-cache Apple Maps POI icons
+    Object.keys(APPLE_POI_DEFS).forEach(async (cat) => {
+      const id = `apple-poi-${cat}`;
+      if (!m.hasImage(id)) {
+        try {
+          const { img } = await createApplePoiImage(cat);
+          if (!m.hasImage(id)) m.addImage(id, img, { pixelRatio: 2 });
+        } catch { /* ignore */ }
+      }
+    });
+
     // Apple Maps Interstate Shields — Line placement (zoom 6+)
     if (!m.getLayer('apple-interstate-lines')) {
       m.addLayer({
@@ -450,6 +492,66 @@ export class MapController {
         layout: {
           'icon-image': ['concat', 'interstate-', ['get', 'ref']],
           'icon-size': 0.46,
+          'symbol-placement': 'point',
+          'icon-allow-overlap': false,
+          'icon-padding': 8,
+        },
+      });
+    }
+
+    // US Highway Shields — Line placement (zooms 7+)
+    if (!m.getLayer('apple-us-highway-lines')) {
+      m.addLayer({
+        id: 'apple-us-highway-lines',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        slot: 'top',
+        minzoom: 7,
+        filter: [
+          'all',
+          ['in', ['get', 'shield'], ['literal', ['us-highway', 'us-highway-duplex']]],
+          ['has', 'ref'],
+        ],
+        layout: {
+          'icon-image': ['concat', 'us-hwy-', ['get', 'ref']],
+          'icon-size': [
+            'interpolate', ['linear'], ['zoom'],
+            7, 0.40,
+            11, 0.52,
+            14, 0.62,
+            17, 0.74,
+          ],
+          'symbol-placement': 'line',
+          'symbol-spacing': 280,
+          'icon-rotation-alignment': 'viewport',
+          'icon-pitch-alignment': 'viewport',
+          'icon-allow-overlap': false,
+          'icon-ignore-placement': false,
+          'icon-padding': 10,
+        },
+      });
+    }
+
+    // US Highway Shields — Point placement at lower/mid zooms (6-11)
+    if (!m.getLayer('apple-us-highway-points')) {
+      m.addLayer({
+        id: 'apple-us-highway-points',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        slot: 'top',
+        minzoom: 6,
+        maxzoom: 11,
+        filter: [
+          'all',
+          ['==', ['geometry-type'], 'Point'],
+          ['in', ['get', 'shield'], ['literal', ['us-highway', 'us-highway-duplex']]],
+          ['has', 'ref'],
+        ],
+        layout: {
+          'icon-image': ['concat', 'us-hwy-', ['get', 'ref']],
+          'icon-size': 0.44,
           'symbol-placement': 'point',
           'icon-allow-overlap': false,
           'icon-padding': 8,
@@ -522,6 +624,81 @@ export class MapController {
         },
       });
     }
+
+    // Apple Maps Point of Interest (POI) Circular Badges & Labels (Parks, Shops, Dining, Transit)
+    if (!m.getLayer('apple-poi-symbols')) {
+      m.addLayer({
+        id: 'apple-poi-symbols',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'poi_label',
+        slot: 'top',
+        minzoom: 12,
+        filter: ['has', 'name'],
+        layout: {
+          'icon-image': [
+            'match', ['get', 'class'],
+            'park', 'apple-poi-park',
+            'shop', 'apple-poi-shop',
+            'grocery', 'apple-poi-grocery',
+            'food_and_drink', 'apple-poi-food',
+            'restaurant', 'apple-poi-food',
+            'fast_food', 'apple-poi-food',
+            'cafe', 'apple-poi-cafe',
+            'fuel', 'apple-poi-gas',
+            'gas_station', 'apple-poi-gas',
+            'hospital', 'apple-poi-hospital',
+            'school', 'apple-poi-school',
+            'college', 'apple-poi-school',
+            'transit', 'apple-poi-transit',
+            'apple-poi-shop',
+          ],
+          'icon-size': [
+            'interpolate', ['linear'], ['zoom'],
+            12, 0.40,
+            14, 0.48,
+            17, 0.56,
+          ],
+          'symbol-placement': 'point',
+          'icon-allow-overlap': false,
+          'text-allow-overlap': false,
+          'icon-ignore-placement': false,
+          'icon-padding': 6,
+          'text-field': ['get', 'name'],
+          'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+          'text-size': [
+            'interpolate', ['linear'], ['zoom'],
+            12, 10.5,
+            14, 12,
+            17, 13.5,
+          ],
+          'text-anchor': 'left',
+          'text-offset': [0.95, 0],
+          'text-padding': 6,
+          'text-optional': true,
+        },
+        paint: {
+          'text-color': [
+            'match', ['get', 'class'],
+            'park', '#1b8a3e',
+            'shop', '#b45309',
+            'grocery', '#854d0e',
+            'food_and_drink', '#c2410c',
+            'restaurant', '#c2410c',
+            'fast_food', '#c2410c',
+            'cafe', '#78350f',
+            'fuel', '#0369a1',
+            'hospital', '#b91c1c',
+            'school', '#6d28d9',
+            'transit', '#0284c7',
+            '#374151',
+          ],
+          'text-halo-color': this.lightPreset === 'night' ? '#1c1c1e' : '#ffffff',
+          'text-halo-width': 2.2,
+          'text-halo-blur': 0.8,
+        },
+      });
+    }
   }
 
   applyConfig() {
@@ -531,10 +708,37 @@ export class MapController {
     }
   }
 
+  updateBuildingColors() {
+    const m = this.map;
+    if (!m || !m.getLayer('apple-3d-buildings')) return;
+    const isDark = this.lightPreset === 'night';
+    const dayColors = [
+      'interpolate', ['linear'], ['get', 'height'],
+      0, '#f4f1ea',
+      40, '#ece6dc',
+      100, '#dfd7cc',
+      250, '#cfc7b9',
+    ];
+    const nightColors = [
+      'interpolate', ['linear'], ['get', 'height'],
+      0, '#22242a',
+      40, '#2a2d36',
+      100, '#323642',
+      250, '#3a3f4e',
+    ];
+    m.setPaintProperty('apple-3d-buildings', 'fill-extrusion-color', isDark ? nightColors : dayColors);
+  }
+
   setLightPreset(preset) {
     if (preset === this.lightPreset) return;
     this.lightPreset = preset;
     try { this.map?.setConfigProperty('basemap', 'lightPreset', preset); } catch { /* applied on style.load */ }
+    const m = this.map;
+    if (m && m.getLayer('apple-poi-symbols')) {
+      const isNight = preset === 'night';
+      m.setPaintProperty('apple-poi-symbols', 'text-halo-color', isNight ? '#1c1c1e' : '#ffffff');
+    }
+    this.updateBuildingColors();
   }
 
   setMapType(type) {

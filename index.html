@@ -25,15 +25,16 @@
   <div class="status-scrim" aria-hidden="true"></div>
   <div id="safeProbe" aria-hidden="true"></div>
 
-  <!-- Floating map controls (top-right, like Apple Maps) -->
+  <!-- Floating map controls (top-right, Apple Maps iOS 18 vertical capsule) -->
   <div class="map-controls glass">
-    <button id="btnLayers" aria-label="Choose map">
-      <svg viewBox="0 0 24 24"><path d="M9 4L3 6.5V20l6-2.5 6 2.5 6-2.5V4l-6 2.5z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9 4v13.5M15 6.5V20" fill="none" stroke="currentColor" stroke-width="1.9"/></svg>
+    <button id="btnLayers" aria-label="Choose map" title="Map Layers">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <div class="divider"></div>
-    <button id="btnLocate" aria-label="Show my location"></button>
+    <button id="btn3D" class="btn-3d" aria-label="Toggle 3D" title="Toggle 3D">3D</button>
+    <div class="divider"></div>
+    <button id="btnLocate" aria-label="Show my location" title="Current Location"></button>
   </div>
-  <button id="btn3D" class="map-pill glass" aria-label="Toggle 3D">3D</button>
   <button id="btnCompass" class="compass glass hidden" aria-label="Reset to north">
     <div class="compass-rose" id="compassRose">
       <svg viewBox="0 0 44 44">
@@ -42,7 +43,8 @@
           <line x1="4" y1="22" x2="7" y2="22"/><line x1="37" y1="22" x2="40" y2="22"/>
         </g>
         <path d="M22 9l4 9h-8z" fill="#ff3b30"/>
-        <text x="22" y="29" text-anchor="middle" font-size="10" font-weight="700" fill="currentColor">N</text>
+        <path d="M22 35l-4-9h8z" fill="#8e8e93"/>
+        <text x="22" y="27" text-anchor="middle" font-size="8" font-weight="700" fill="currentColor">N</text>
       </svg>
     </div>
   </button>
@@ -200,7 +202,7 @@
           </button>
         </div>
 
-        <p class="sheet-foot">Pig Path v<span data-version>0.6.0</span> · Oink responsibly 🐷</p>
+        <p class="sheet-foot">Pig Path v<span data-version>0.6.1</span> · Oink responsibly 🐷</p>
       </div>
 
       <!-- 2. Search Results Pane -->
@@ -530,12 +532,12 @@
           <div class="cell">
             <span class="cell-icon" style="background:#ff2d55"><svg viewBox="0 0 24 24"><text x="12" y="17.5" text-anchor="middle" font-size="16">🐷</text></svg></span>
             <span class="label">Version</span>
-            <span class="value" data-version>0.6.0</span>
+            <span class="value" data-version>0.6.1</span>
           </div>
           <div class="cell">
             <span class="cell-icon" style="background:#34c759"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             <span class="label">Build</span>
-            <span class="value" data-build>Fog of War, Speedometer &amp; Co-Pilot Personalities</span>
+            <span class="value" data-build>Apple Maps iOS 18 Cartography &amp; UI Polish</span>
           </div>
         </div>
         <p class="group-foot center">Made for one very special driver 🐷</p>
