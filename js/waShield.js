@@ -25,48 +25,45 @@ export const GEORGE_PATH =
 
 /**
  * Builds Apple Maps–style Washington State Route marker SVG.
- * Matches Apple Maps in user screenshots:
- * - Charcoal dark rounded box (#1c1c1e)
- * - Solid crisp white outer border with soft drop shadow
- * - White George Washington bust cleanly centered inside
- * - Route number centered inside the bust in bold Apple SF Pro font
+ * Matches Apple Maps in user screenshot:
+ * - 1:1 Square dark charcoal rounded container (#2c2c2e)
+ * - NO outer white border
+ * - Solid white George Washington bust cleanly filling the container
+ * - Route number positioned in the upper-middle head area in bold Apple SF Pro font
+ * - Digits rendered in matching dark charcoal (#2c2c2e)
  */
 export function generateWaShieldSvg(ref) {
-  const cleanRef = String(ref).trim().replace(/^(SR|WA|State Route)\s*/i, '');
+  const cleanRef = String(ref).trim().replace(/^(SR-?|WA-?|State Route)\s*/i, '');
   const is3 = cleanRef.length >= 3;
-  const w = is3 ? 620 : 540;
-  const h = 540;
+  const w = 512;
+  const h = 512;
 
   // George Washington path extents: x [297.6, 797.5] (w=500), y [-58.6, 487.4] (h=546)
-  const scale = 0.74;
-  const origW = 500 * scale; // 370
-  const origH = 546 * scale; // 404
+  const scale = 0.85;
+  const origW = 500 * scale; // 425
+  const origH = 546 * scale; // 464.1
   const posX = (w - origW) / 2 - 297.6 * scale;
-  const posY = (h - origH) / 2 - (-58.6) * scale + 2;
+  const posY = 24 - (-58.6) * scale;
 
-  const fontSize = is3 ? 175 : 210;
-  const fontY = 285;
-  const fontX = w / 2 + (is3 ? 6 : 3);
-  const letterSpacing = is3 ? '-4' : '-1';
+  const fontSize = is3 ? 168 : (cleanRef.length === 1 ? 225 : 205);
+  const fontY = 228;
+  const fontX = w / 2 + (is3 ? 4 : 2);
+  const letterSpacing = is3 ? '-6' : '-2';
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">` +
-    `<defs>` +
-    `<filter id="srShadow" x="-15%" y="-15%" width="130%" height="130%">` +
-    `<feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="rgba(0,0,0,0.35)"/>` +
-    `</filter>` +
-    `</defs>` +
-    `<!-- Apple Maps Dark Rounded Container with Crisp White Outer Border and Soft Shadow -->` +
-    `<rect x="16" y="16" width="${w - 32}" height="${h - 32}" rx="96" fill="#1c1c1e" stroke="#ffffff" stroke-width="22" stroke-linejoin="round" filter="url(#srShadow)"/>` +
+    `<!-- Apple Maps Dark Charcoal Rounded Container (NO outer white stroke) -->` +
+    `<rect x="0" y="0" width="${w}" height="${h}" rx="96" fill="#2c2c2e"/>` +
     `<!-- White George Washington Bust Silhouette -->` +
     `<g transform="translate(${posX.toFixed(2)}, ${posY.toFixed(2)}) scale(${scale})">` +
     `<path fill="#ffffff" d="${GEORGE_PATH}"/>` +
     `</g>` +
-    `<!-- Route Number centered in bust in Apple SF Pro Bold -->` +
-    `<text x="${fontX.toFixed(1)}" y="${fontY}" dominant-baseline="central" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="${fontSize}" text-anchor="middle" fill="#1c1c1e" letter-spacing="${letterSpacing}">${cleanRef}</text>` +
+    `<!-- Route Number in head in Apple SF Pro Bold matching container color -->` +
+    `<text x="${fontX.toFixed(1)}" y="${fontY}" dominant-baseline="central" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="${fontSize}" text-anchor="middle" fill="#2c2c2e" letter-spacing="${letterSpacing}">${cleanRef}</text>` +
     `</svg>`
   );
 }
+
 
 /**
  * Builds Apple Maps–style Interstate Highway Shield SVG.
@@ -247,13 +244,13 @@ function svgToImage(svg, w, h) {
  * Renders WA State Route SVG into an HTMLImageElement ready for map.addImage().
  */
 export function createWaShieldImage(ref) {
-  const cleanRef = String(ref).trim().replace(/^(SR|WA)\s*/i, '');
-  const is3 = cleanRef.length >= 3;
-  const w = is3 ? 88 : 78;
+  const cleanRef = String(ref).trim().replace(/^(SR-?|WA-?)\s*/i, '');
+  const w = 78;
   const h = 78;
   const svg = generateWaShieldSvg(cleanRef);
   return svgToImage(svg, w, h);
 }
+
 
 /**
  * Renders Interstate SVG into an HTMLImageElement ready for map.addImage().
