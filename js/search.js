@@ -356,3 +356,30 @@ export function clearRecentSearches() {
     localStorage.removeItem(RECENTS_KEY);
   } catch { /* ignore */ }
 }
+
+/**
+ * Reverse geocode a [lat, lng] coordinate into a human-friendly street or place name.
+ */
+export async function reverseGeocode(lat, lng, token) {
+  if (!token || lat == null || lng == null) {
+    return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+  }
+  try {
+    const url =
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(lng)},${encodeURIComponent(lat)}.json` +
+      `?types=address,poi,neighborhood,locality&limit=1&access_token=${encodeURIComponent(token)}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      const feat = data.features?.[0];
+      if (feat) {
+        const parts = (feat.place_name || '').split(',').map((s) => s.trim());
+        return parts.slice(0, 2).join(', ') || feat.text || `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+      }
+    }
+  } catch (err) {
+    console.warn('[search] reverse geocode failed:', err);
+  }
+  return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+}
+

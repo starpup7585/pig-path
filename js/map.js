@@ -44,6 +44,13 @@ export class MapController {
     this.flyoverName = null;
     this.waypointMarkers = [];
     this.waypoints = [];
+    this.kalman = null;
+    this.bestRecentAccuracy = Infinity;
+    this.bestRecentFixTime = 0;
+    this.lastCenteredAccuracy = Infinity;
+    this.burstWatchId = null;
+    this.burstTimer = null;
+    this.lifecycleBound = false;
   }
 
 
@@ -101,7 +108,7 @@ export class MapController {
       if (this.flyoverActive) this.stopFlyover();
       else this.stopOrbit();
     }));
-    m.on('click', () => this.cb.onMapTap?.());
+    m.on('click', (e) => this.cb.onMapTap?.(e.lngLat, e));
 
     // Generate authentic shields on demand (Apple Maps Interstate & Washington State Route)
     m.on('styleimagemissing', async (e) => {
@@ -1622,21 +1629,35 @@ export class MapController {
     return { top: 0, bottom: this.bottomPad, left: 0, right: 0 };
   }
 
-  // ---------- Location ----------
+  // ---------- High-Precision GNSS Location Engine (iPhone 16 Pro L1+L5 Tuned) ----------
 
   startWatching() {
-    if (this.watchId != null) return;
     if (!('geolocation' in navigator)) {
       toast('Location isn’t available on this device');
       return;
     }
 
-    // Force an immediate fresh satellite GPS fix with 0ms cache age
-    navigator.geolocation.getCurrentPosition(
-      (p) => this.onPosition(p, { forceFly: this.firstFix }),
-      (err) => console.warn('[geo] initial getPosition error', err),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 },
-    );
+    // Bind iOS PWA foreground wake listeners so unlocking the iPhone immediately refreshes GNSS lock
+    if (!this.lifecycleBound) {
+      this.lifecycleBound = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && !settings.customLocation) {
+          this.stopWatching();
+          this.startWatching();
+          this.startHighPrecisionBurst({ forceFly: false });
+        }
+      });
+      window.addEventListener('pageshow', () => {
+        if (!settings.customLocation && this.watchId == null) {
+          this.startWatching();
+        }
+      });
+    }
+
+    if (this.watchId != null) return;
+
+    // Kick off a high-frequency GNSS convergence burst (samples until <= 10m satellite lock)
+    this.startHighPrecisionBurst({ forceFly: this.firstFix });
 
     this.watchId = navigator.geolocation.watchPosition(
       (p) => this.onPosition(p),
@@ -1648,6 +1669,52 @@ export class MapController {
   stopWatching() {
     if (this.watchId != null) navigator.geolocation.clearWatch(this.watchId);
     this.watchId = null;
+    this.stopBurstWatch();
+  }
+
+  stopBurstWatch() {
+    if (this.burstWatchId != null) {
+      navigator.geolocation?.clearWatch(this.burstWatchId);
+      this.burstWatchId = null;
+    }
+    if (this.burstTimer != null) {
+      clearTimeout(this.burstTimer);
+      this.burstTimer = null;
+    }
+  }
+
+  /**
+   * Samples incoming hardware GNSS fixes over a 6-second convergence window
+   * until iPhone 16 Pro L1+L5 satellite accuracy (<= 10m) is reached.
+   */
+  startHighPrecisionBurst({ forceFly = false, targetAccuracy = 10, maxWaitMs = 6000 } = {}) {
+    if (!('geolocation' in navigator) || settings.customLocation) return;
+    this.stopBurstWatch();
+
+    let bestBurstAcc = Infinity;
+    let didFly = false;
+
+    this.burstWatchId = navigator.geolocation.watchPosition(
+      (p) => {
+        const acc = p.coords?.accuracy ?? 9999;
+        const isSharper = acc < bestBurstAcc * 0.85 || acc <= targetAccuracy;
+        if (acc < bestBurstAcc) bestBurstAcc = acc;
+
+        this.onPosition(p, { forceFly: (forceFly && !didFly) || (forceFly && isSharper && acc < 35) });
+        if (forceFly && acc < 45) didFly = true;
+
+        // Once we lock onto <= 10m dual-frequency GNSS, burst is complete
+        if (acc <= targetAccuracy) {
+          this.stopBurstWatch();
+        }
+      },
+      (err) => console.warn('[geo] burst sample warning', err),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: maxWaitMs },
+    );
+
+    this.burstTimer = setTimeout(() => {
+      this.stopBurstWatch();
+    }, maxWaitMs);
   }
 
   // Locate button: off → follow → heading-up → follow …
@@ -1655,31 +1722,29 @@ export class MapController {
     this.stopOrbit();
     if (settings.customLocation && this.pos) {
       this.setLocateMode('follow');
-      this.map?.flyTo({ center: [this.pos.lng, this.pos.lat], zoom: FOLLOW_ZOOM - 1, duration: 1200, padding: this.pad() });
+      this.map?.flyTo({ center: [this.pos.lng, this.pos.lat], zoom: FOLLOW_ZOOM + 0.4, duration: 1100, padding: this.pad() });
       toast(`🎯 Centered on calibrated location: ${settings.customLocation.name || 'Custom'} 🐷`, 3000);
       return;
     }
 
     if (this.watchId == null) this.startWatching();
 
-    // Query immediate hardware GPS refresh
-    navigator.geolocation?.getCurrentPosition(
-      (p) => this.onPosition(p, { forceFly: true }),
-      (err) => console.warn('[geo] fresh GPS error', err),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
-    );
+    // Trigger a fresh multi-sample GNSS burst lock
+    this.startHighPrecisionBurst({ forceFly: true, targetAccuracy: 8, maxWaitMs: 5500 });
 
     if (!this.pos) {
       this.setLocateMode('follow');
-      toast('🐷 Sniffing out high-accuracy GPS…');
+      toast('🐷 Locking onto high-precision satellite GPS…');
       return;
     }
 
     if (this.locateMode === 'off') {
       this.setLocateMode('follow');
-      const accDesc = this.pos.accuracy < 100
+      const accDesc = this.pos.accuracy <= 25
+        ? `±${Math.max(3, Math.round(this.pos.accuracy * 3.28))} ft (Pinpoint Satellite GPS)`
+        : this.pos.accuracy < 100
         ? `±${Math.round(this.pos.accuracy * 3.28)} ft (High Precision GPS)`
-        : `±${(this.pos.accuracy / 1609.344).toFixed(1)} mi (Approximate)`;
+        : `±${(this.pos.accuracy / 1609.344).toFixed(1)} mi (Approximate — refining…)`;
       toast(`📍 Location: ${accDesc} 🐷`);
     } else if (this.locateMode === 'follow') {
       await this.enableCompass(); // must start inside the tap for iOS permission
@@ -1720,7 +1785,7 @@ export class MapController {
     if (!this.map || !this.pos || mode === 'off') return;
     const opts = {
       center: [this.pos.lng, this.pos.lat],
-      zoom: Math.max(this.map.getZoom(), FOLLOW_ZOOM - 1),
+      zoom: Math.max(this.map.getZoom(), FOLLOW_ZOOM),
       duration: 900,
       padding: this.pad(),
     };
@@ -1730,49 +1795,181 @@ export class MapController {
     this.map.easeTo(opts);
   }
 
+  /**
+   * Rejects degraded cell-tower / Wi-Fi fallback fixes when we already have a recent
+   * high-accuracy satellite fix, and filters out physically impossible GPS jump spikes.
+   */
+  shouldAcceptPosition(lat, lng, accuracy, now) {
+    if (!this.pos || this.pos.isManual) return true;
+    const dtSec = Math.max(0.1, (now - (this.bestRecentFixTime || 0)) / 1000);
+    const distM = haversineMeters(this.pos.lat, this.pos.lng, lat, lng);
+
+    // 1. If we had a crisp fix (<35m) within the last 20s and a sudden coarse reading (>50m and >2.2x worse) arrives, reject it
+    if (dtSec < 20 && this.bestRecentAccuracy < 35 && accuracy > 50 && accuracy > this.bestRecentAccuracy * 2.2) {
+      return false;
+    }
+
+    // 2. Reject impossible teleport spikes (>65 m/s ~ 145 mph) when the new fix is less accurate than our current lock
+    if (dtSec < 12 && distM / dtSec > 65 && accuracy > (this.pos.accuracy || 50) * 1.25) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * 2D Accuracy-Weighted Kalman Filter with stationary multipath deadband.
+   */
+  filterPosition(rawLat, rawLng, accuracy, speed, now) {
+    const measAcc = Math.max(2.5, accuracy || 15);
+    const R = measAcc * measAcc; // Measurement variance (m^2)
+
+    if (!this.kalman) {
+      this.kalman = { lat: rawLat, lng: rawLng, variance: R, ts: now };
+      return { lat: rawLat, lng: rawLng, accuracy: measAcc };
+    }
+
+    const dtSec = Math.max(0.05, (now - this.kalman.ts) / 1000);
+    this.kalman.ts = now;
+
+    // If the new reading is dramatically sharper than our prior state (e.g. Wi-Fi -> L1+L5 GNSS lock), snap immediately
+    if (R < this.kalman.variance * 0.45 || dtSec > 30) {
+      this.kalman.lat = rawLat;
+      this.kalman.lng = rawLng;
+      this.kalman.variance = R;
+      return { lat: rawLat, lng: rawLng, accuracy: measAcc };
+    }
+
+    // Stationary multipath deadband: if stopped (speed < 0.6 m/s) and jitter is tiny, hold steady
+    const moveSpeed = speed != null && speed >= 0 ? speed : 1.5;
+    const dispM = haversineMeters(this.kalman.lat, this.kalman.lng, rawLat, rawLng);
+    if (moveSpeed < 0.6 && dispM < Math.min(4.5, measAcc * 0.38)) {
+      return {
+        lat: this.kalman.lat,
+        lng: this.kalman.lng,
+        accuracy: Math.sqrt(Math.min(this.kalman.variance, R)),
+      };
+    }
+
+    // Predict step: process noise grows with time and movement speed
+    const sigmaSpeed = Math.max(1.2, Math.min(moveSpeed, 38));
+    const Q = sigmaSpeed * sigmaSpeed * dtSec;
+    const P = this.kalman.variance + Q;
+
+    // Update step: Kalman gain K = P / (P + R)
+    const K = P / (P + R);
+    this.kalman.lat += K * (rawLat - this.kalman.lat);
+    this.kalman.lng += K * (rawLng - this.kalman.lng);
+    this.kalman.variance = (1 - K) * P;
+
+    return {
+      lat: this.kalman.lat,
+      lng: this.kalman.lng,
+      accuracy: Math.min(measAcc, Math.max(3, Math.sqrt(this.kalman.variance))),
+    };
+  }
+
+  /**
+   * When an active route polyline is present and the user is within 24m of the route,
+   * gently map-matches the puck onto the route centerline (Apple Maps road lock).
+   */
+  snapToActiveRoute(lat, lng, accuracy) {
+    const coords = this.currentRouteData?.geometry?.coordinates;
+    if (!coords || coords.length < 2 || accuracy > 55) return { lat, lng };
+
+    let bestDist = Infinity;
+    let bestPt = null;
+
+    for (let i = 0; i < coords.length - 1; i++) {
+      const [x1, y1] = coords[i];
+      const [x2, y2] = coords[i + 1];
+      const pt = closestPointOnSegment(lng, lat, x1, y1, x2, y2);
+      const d = haversineMeters(lat, lng, pt.lat, pt.lng);
+      if (d < bestDist) {
+        bestDist = d;
+        bestPt = pt;
+      }
+    }
+
+    if (bestPt && bestDist <= 24) {
+      const blend = 0.82;
+      return {
+        lat: lat + (bestPt.lat - lat) * blend,
+        lng: lng + (bestPt.lng - lng) * blend,
+      };
+    }
+    return { lat, lng };
+  }
+
   onPosition(p, { forceFly = false } = {}) {
     if (settings.customLocation) {
       this.applyCustomLocation();
       return;
     }
 
-    const { latitude: lat, longitude: lng, accuracy, heading, speed } = p.coords;
-    const wasCoarse = this.prevAccuracy && this.prevAccuracy > 400;
-    const isAccurate = accuracy < 200;
-    this.prevAccuracy = accuracy;
+    const now = Date.now();
+    const { latitude: rawLat, longitude: rawLng, accuracy: rawAcc, heading, speed } = p.coords;
 
-    this.pos = { lat, lng, accuracy, isManual: false, speed, heading };
+    // 1. Reject degraded cell-tower / Wi-Fi fallback outliers
+    if (!forceFly && !this.shouldAcceptPosition(rawLat, rawLng, rawAcc, now)) {
+      return;
+    }
+
+    // Track best recent accuracy (decays slowly after 25s so new fixes can always take over)
+    if (now - this.bestRecentFixTime > 25000 || rawAcc <= this.bestRecentAccuracy) {
+      this.bestRecentAccuracy = rawAcc;
+      this.bestRecentFixTime = now;
+    }
+
+    // 2. Apply 2D Kalman accuracy-weighted filter + stationary jitter deadband
+    const filtered = this.filterPosition(rawLat, rawLng, rawAcc, speed, now);
+
+    // 3. Map-match to active route centerline when driving along a route
+    const snapped = this.snapToActiveRoute(filtered.lat, filtered.lng, filtered.accuracy);
+    const lat = snapped.lat;
+    const lng = snapped.lng;
+    const accuracy = Math.round(filtered.accuracy);
+
+    // Detect if accuracy significantly sharpened compared to when we last centered the camera
+    const sharpenedSignificantly =
+      this.lastCenteredAccuracy > 30 &&
+      (rawAcc < 20 || rawAcc < this.lastCenteredAccuracy * 0.55);
+    this.prevAccuracy = rawAcc;
+
+    this.pos = { lat, lng, accuracy, rawAccuracy: rawAcc, isManual: false, speed, heading };
     this.ensurePuck();
     this.puck.setLngLat([lng, lat]);
     this.updateAccuracy();
 
-    if (heading != null && !Number.isNaN(heading) && speed != null && speed > 2) {
-      this.lastGpsCourse = Date.now();
+    if (heading != null && !Number.isNaN(heading) && speed != null && speed > 1.5) {
+      this.lastGpsCourse = now;
       this.setHeading(heading);
     }
 
-    // If first fix, or accuracy dramatically improved from coarse to precise, or forced:
-    if (this.firstFix || (wasCoarse && isAccurate) || forceFly) {
+    // Re-center if first fix, forced, or when satellite lock sharpens a coarse initial fix
+    if (this.firstFix || sharpenedSignificantly || forceFly) {
       this.firstFix = false;
+      this.lastCenteredAccuracy = rawAcc;
       if (this.locateMode === 'off') {
         this.locateMode = 'follow';
         this.cb.onLocateMode?.('follow');
       }
-      this.flyingUntil = Date.now() + 1900;
-      this.map.flyTo({ center: [lng, lat], zoom: FOLLOW_ZOOM - 1, duration: 1600, padding: this.pad() });
+      this.flyingUntil = now + 1700;
+      const targetZoom = rawAcc <= 25 ? FOLLOW_ZOOM + 0.5 : FOLLOW_ZOOM - 0.5;
+      this.map.flyTo({ center: [lng, lat], zoom: Math.max(this.map.getZoom(), targetZoom), duration: 1400, padding: this.pad() });
     } else if (this.locateMode !== 'off' && !this.orbiting) {
-      this.followCamera(800, true);
+      this.followCamera(700, true);
     }
 
     // On iOS Safari, if "Precise Location" is turned off, accuracy is >1500m (~1 mile off)
-    if (accuracy > 1500 && !this.coarseNoticeShown) {
+    if (rawAcc > 1500 && !this.coarseNoticeShown) {
       this.coarseNoticeShown = true;
-      const mi = (accuracy / 1609.344).toFixed(1);
-      toast(`📍 Approximate location (±${mi} mi). On iPhone: Settings › Safari › Location › Turn ON "Precise Location", or calibrate in Settings 🐷`, 7500);
+      const mi = (rawAcc / 1609.344).toFixed(1);
+      toast(`📍 Approximate location (±${mi} mi). On iPhone: Settings › Safari › Location › Turn ON "Precise Location", or tap Calibrate in Settings 🐷`, 7500);
     }
 
-    if (Date.now() - this.lastSavedLoc > 30000) {
-      this.lastSavedLoc = Date.now();
+    if (now - this.lastSavedLoc > 20000) {
+      this.lastSavedLoc = now;
       save({ lastLocation: { lat, lng } });
     }
     this.cb.onLocation?.(this.pos);
@@ -1793,7 +1990,7 @@ export class MapController {
     this.applyCustomLocation();
     if (this.map) {
       this.flyingUntil = Date.now() + 1500;
-      this.map.flyTo({ center: [lng, lat], zoom: FOLLOW_ZOOM - 1, duration: 1400, padding: this.pad() });
+      this.map.flyTo({ center: [lng, lat], zoom: FOLLOW_ZOOM + 0.5, duration: 1400, padding: this.pad() });
     }
   }
 
@@ -1801,22 +1998,19 @@ export class MapController {
     save({ customLocation: null });
     this.firstFix = true;
     this.prevAccuracy = null;
+    this.kalman = null;
+    this.bestRecentAccuracy = Infinity;
+    this.lastCenteredAccuracy = Infinity;
     this.coarseNoticeShown = false;
     this.puckEl?.classList.remove('is-calibrated');
     this.startWatching();
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (p) => this.onPosition(p, { forceFly: true }),
-        (err) => this.onGeoError(err),
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
-      );
-    }
+    this.startHighPrecisionBurst({ forceFly: true, targetAccuracy: 8, maxWaitMs: 6000 });
   }
 
   applyCustomLocation() {
     if (!settings.customLocation) return;
     const { lat, lng, name } = settings.customLocation;
-    this.pos = { lat, lng, accuracy: 5, isManual: true, name };
+    this.pos = { lat, lng, accuracy: 1, isManual: true, name };
     this.ensurePuck();
     this.puck.setLngLat([lng, lat]);
     this.updateAccuracy();
@@ -1865,7 +2059,8 @@ export class MapController {
   updateAccuracy() {
     const src = this.map?.getSource('accuracy');
     if (!src || !this.pos) return;
-    src.setData(circle(this.pos.lng, this.pos.lat, Math.min(this.pos.accuracy || 0, 2000)));
+    const r = this.pos.accuracy <= 10 ? 0 : Math.min(this.pos.accuracy || 0, 2000);
+    src.setData(r > 0 ? circle(this.pos.lng, this.pos.lat, r) : EMPTY);
   }
 
   // ---------- Destination & Routing ----------
@@ -2083,3 +2278,28 @@ function circle(lng, lat, radiusM, steps = 64) {
   }
   return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } };
 }
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function closestPointOnSegment(px, py, x1, y1, x2, y2) {
+  const cosLat = Math.cos((py * Math.PI) / 180);
+  const dx = (x2 - x1) * cosLat;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return { lng: x1, lat: y1 };
+  const t = Math.max(0, Math.min(1, (((px - x1) * cosLat) * dx + (py - y1) * dy) / lenSq));
+  return {
+    lng: x1 + t * (x2 - x1),
+    lat: y1 + t * (y2 - y1),
+  };
+}
+

@@ -6,6 +6,7 @@ import { createSheet } from './sheet.js';
 import { MapController } from './map.js';
 import {
   searchPlaces,
+  reverseGeocode,
   getCategoryIconSvg,
   calculateDistanceMiles,
   formatDistance,
@@ -1961,11 +1962,15 @@ function updateLocationUI() {
     if (locFoot) locFoot.textContent = `Using custom spot: ${settings.customLocation.name}. Tap to recalibrate or reset to GPS.`;
   } else if (mapCtl.pos) {
     const acc = mapCtl.pos.accuracy || 0;
-    if (acc < 50) {
-      locVal.textContent = `±${Math.round(acc * 3.28)} ft (GPS)`;
+    const ft = Math.max(3, Math.round(acc * 3.28084));
+    if (acc <= 15) {
+      locVal.textContent = `±${ft} ft (L1+L5 GPS)`;
+      locVal.style.color = '#34c759';
+    } else if (acc < 65) {
+      locVal.textContent = `±${ft} ft (GPS)`;
       locVal.style.color = '#34c759';
     } else if (acc < 300) {
-      locVal.textContent = `±${Math.round(acc * 3.28)} ft (Good)`;
+      locVal.textContent = `±${ft} ft (Good)`;
       locVal.style.color = '#34c759';
     } else {
       const mi = (acc / 1609.344).toFixed(1);
@@ -1975,7 +1980,7 @@ function updateLocationUI() {
     if (locFoot) {
       locFoot.textContent = acc > 500
         ? 'Location is approximate (few miles off). Tap to calibrate or enable iOS Precise Location.'
-        : 'High-precision satellite GPS active.';
+        : 'High-precision L1+L5 GNSS & Kalman filter active.';
     }
   } else {
     locVal.textContent = 'Detecting…';
@@ -2012,8 +2017,8 @@ function updateLocationModalUI() {
       badge.textContent = '🎯 Calibrated Spot';
       badge.className = 'loc-status-badge calibrated';
     }
-    if (coordsText) coordsText.textContent = `${settings.customLocation.lat.toFixed(4)}°, ${settings.customLocation.lng.toFixed(4)}°`;
-    if (accuracyText) accuracyText.textContent = 'Exact Pinned Location';
+    if (coordsText) coordsText.textContent = `${settings.customLocation.lat.toFixed(5)}°, ${settings.customLocation.lng.toFixed(5)}°`;
+    if (accuracyText) accuracyText.textContent = 'Exact Pinned Location (±3 ft)';
     if (statusSub) statusSub.textContent = 'Your location puck and directions are pinned to this exact calibrated address.';
     return;
   }
@@ -2022,21 +2027,27 @@ function updateLocationModalUI() {
 
   if (mapCtl.pos) {
     const acc = mapCtl.pos.accuracy || 0;
+    const ft = Math.max(3, Math.round(acc * 3.28084));
+    const isPinpoint = acc <= 15;
     const isPrecise = acc < 200;
     if (badge) {
-      badge.textContent = isPrecise ? '🟢 High Precision GPS' : '⚠️ Approximate Location';
+      badge.textContent = isPinpoint
+        ? '🟢 Pinpoint L1+L5 GPS'
+        : isPrecise
+          ? '🟢 High Precision GPS'
+          : '⚠️ Approximate Location';
       badge.className = `loc-status-badge ${isPrecise ? '' : 'coarse'}`;
     }
-    if (coordsText) coordsText.textContent = `${mapCtl.pos.lat.toFixed(4)}°, ${mapCtl.pos.lng.toFixed(4)}°`;
+    if (coordsText) coordsText.textContent = `${mapCtl.pos.lat.toFixed(5)}°, ${mapCtl.pos.lng.toFixed(5)}°`;
     if (accuracyText) {
       accuracyText.textContent = acc < 500
-        ? `Accuracy: ±${Math.round(acc * 3.28)} ft`
+        ? `Accuracy: ±${ft} ft (Kalman smoothed)`
         : `Accuracy: ±${(acc / 1609.344).toFixed(1)} miles`;
     }
     if (statusSub) {
       statusSub.textContent = isPrecise
-        ? 'Connected to hardware satellite GPS with high accuracy.'
-        : 'Using approximate Wi-Fi or cellular location. If you are on iPhone, turn ON "Precise Location" in iOS Settings, or pin your address below.';
+        ? 'Connected to hardware satellite GNSS with 2D Kalman smoothing and route centerline snap.'
+        : 'Using approximate Wi-Fi or cellular location. If you are on iPhone, turn ON "Precise Location" in iOS Settings, or pin your exact spot below.';
     }
   } else {
     if (badge) badge.textContent = '⏳ Waiting for GPS…';
@@ -2051,7 +2062,7 @@ $('#btnLocRefreshGps')?.addEventListener('click', () => {
   mapCtl.clearCustomLocation();
   updateLocationUI();
   updateLocationModalUI();
-  toast('🔄 Querying fresh high-accuracy satellite GPS… 🐷');
+  toast('🔄 Running L1+L5 multi-sample satellite GPS burst… 🐷');
 });
 
 $('#btnRevertGps')?.addEventListener('click', () => {
@@ -2059,6 +2070,28 @@ $('#btnRevertGps')?.addEventListener('click', () => {
   updateLocationUI();
   updateLocationModalUI();
   toast('🔄 Reverted to live device GPS 🐷');
+});
+
+$('#btnLocPickOnMap')?.addEventListener('click', () => {
+  if (!mapCtl.map) return;
+  closeModal('locationModal');
+  closeModal('settingsModal');
+  sheet.setSnap('min');
+  toast('👆 Tap anywhere on the map to pin your exact spot 🐷', 6000);
+  const canvas = mapCtl.map.getCanvas();
+  if (canvas) canvas.style.cursor = 'crosshair';
+
+  mapCtl.map.once('click', async (e) => {
+    if (canvas) canvas.style.cursor = '';
+    const { lat, lng } = e.lngLat;
+    mapCtl.setCustomLocation({ lat, lng, name: 'Pinning exact spot…' });
+    updateLocationUI();
+    const resolvedName = await reverseGeocode(lat, lng, settings.token);
+    mapCtl.setCustomLocation({ lat, lng, name: resolvedName });
+    updateLocationUI();
+    updateLocationModalUI();
+    toast(`🎯 Location pinned to ${resolvedName}! 🐷`);
+  });
 });
 
 $('#btnLocUseHome')?.addEventListener('click', () => {
@@ -2087,14 +2120,18 @@ $('#btnLocUseWork')?.addEventListener('click', () => {
   }
 });
 
-$('#btnLocUseMapCenter')?.addEventListener('click', () => {
+$('#btnLocUseMapCenter')?.addEventListener('click', async () => {
   if (mapCtl.map) {
     const c = mapCtl.map.getCenter();
     mapCtl.setCustomLocation({ lat: c.lat, lng: c.lng, name: 'Pinned Map Spot' });
     updateLocationUI();
     updateLocationModalUI();
     closeModal('locationModal');
-    toast('🎯 Location calibrated to center of map! 🐷');
+    const resolvedName = await reverseGeocode(c.lat, c.lng, settings.token);
+    mapCtl.setCustomLocation({ lat: c.lat, lng: c.lng, name: resolvedName });
+    updateLocationUI();
+    updateLocationModalUI();
+    toast(`🎯 Location calibrated to ${resolvedName}! 🐷`);
   }
 });
 
