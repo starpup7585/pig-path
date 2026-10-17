@@ -206,7 +206,7 @@ onChange((keys) => {
   syncControls();
   if (keys.includes('appearance')) applyTheme();
   if (keys.includes('traffic')) mapCtl.applyTraffic();
-  if (keys.includes('favHome') || keys.includes('favWork')) updateSavedPlacesUI();
+  if (keys.includes('favHome') || keys.includes('favWork') || keys.includes('favCustom')) updateSavedPlacesUI();
   if (keys.includes('customLocation')) updateLocationUI();
   if (keys.includes('car') || keys.includes('evMaxRange') || keys.includes('gasMaxRange') || keys.includes('evStartPercent')) {
     if (currentRoute) updateRouteCardUI(currentRoute);
@@ -1168,15 +1168,19 @@ $('#btnClearFog')?.addEventListener('click', () => {
   toast('Fog of War exploration history reset 🐷');
 });
 
-// ---------- Saved Places (Home & Work) ----------
+// ---------- Saved Places (Home, Work & Custom Favorite) ----------
 function updateSavedPlacesUI() {
   const homeSub = $('#favHomeSub');
   const workSub = $('#favWorkSub');
+  const customLabel = $('#favCustomLabel');
+  const customSub = $('#favCustomSub');
   const setHomeVal = $('#settingsHomeValue');
   const setWorkVal = $('#settingsWorkValue');
 
   if (homeSub) homeSub.textContent = settings.favHome ? (settings.favHome.name || settings.favHome.shortAddress) : 'Set in search';
   if (workSub) workSub.textContent = settings.favWork ? (settings.favWork.name || settings.favWork.shortAddress) : 'Set in search';
+  if (customLabel) customLabel.textContent = settings.favCustom ? 'Favorite' : 'Add';
+  if (customSub) customSub.textContent = settings.favCustom ? (settings.favCustom.name || settings.favCustom.shortAddress) : 'Set in search';
 
   if (setHomeVal) setHomeVal.textContent = settings.favHome ? (settings.favHome.name || settings.favHome.shortAddress) : 'Not set';
   if (setWorkVal) setWorkVal.textContent = settings.favWork ? (settings.favWork.name || settings.favWork.shortAddress) : 'Not set';
@@ -1194,6 +1198,13 @@ $('#btnSetAsWork')?.addEventListener('click', () => {
   save({ favWork: selectedDestination });
   updateSavedPlacesUI();
   toast(`🐷 Saved ${selectedDestination.name} as Work!`);
+});
+
+$('#btnSetAsCustom')?.addEventListener('click', () => {
+  if (!selectedDestination) return;
+  save({ favCustom: selectedDestination });
+  updateSavedPlacesUI();
+  toast(`⭐ Saved ${selectedDestination.name} to Favorites! 🐷`);
 });
 
 $('#settingsHomeRow')?.addEventListener('click', () => {
@@ -1222,20 +1233,27 @@ $('#settingsWorkRow')?.addEventListener('click', () => {
   }
 });
 
-// Favorites (Home / Work shortcuts)
+// Favorites (Home / Work / Custom Favorite shortcuts)
 $$('[data-fav]').forEach((btn) => {
   btn.addEventListener('click', async () => {
     const type = btn.dataset.fav;
-    const saved = type === 'home' ? settings.favHome : settings.favWork;
+    const saved =
+      type === 'home'
+        ? settings.favHome
+        : type === 'work'
+        ? settings.favWork
+        : settings.favCustom;
     if (saved) {
       selectPlace(saved);
       await startDirections(saved);
     } else {
-      searchInput.value = type === 'home' ? 'Home' : 'Work';
+      searchInput.value = type === 'home' ? 'Home' : type === 'work' ? 'Work' : '';
       sheet.snapTo('full');
       showPane('search');
+      renderSuggestions();
       searchInput.focus();
-      toast(`Search your ${type} address, then tap "Set as ${type === 'home' ? 'Home' : 'Work'}" on the place card! 🐷`);
+      const label = type === 'home' ? 'Set as Home' : type === 'work' ? 'Set as Work' : 'Save Favorite';
+      toast(`Search a place, then tap "${label}" on the place card! 🐷`);
     }
   });
 });

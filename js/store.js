@@ -14,6 +14,7 @@ const DEFAULTS = {
   customLocation: null, // { name, lat, lng } manual location calibration/override
   favHome: null,        // { name, address, coordinates: [lng, lat] }
   favWork: null,        // { name, address, coordinates: [lng, lat] }
+  favCustom: null,      // { name, address, coordinates: [lng, lat] }
   evMaxRange: 260,      // full charge range in miles
   evStartPercent: 80,   // starting battery level (0-100)
   gasMaxRange: 380,     // full tank range in miles

@@ -189,9 +189,9 @@
             <span class="fav-icon work"><svg viewBox="0 0 24 24"><path d="M9 6V5a2 2 0 012-2h2a2 2 0 012 2v1h4a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2zm2 0h2V5h-2z" fill="currentColor"/></svg></span>
             <span class="fav-label">Work</span><span class="fav-sub" id="favWorkSub">Set in search</span>
           </button>
-          <button class="fav" data-soon="0.4.0" data-title="Favorites">
+          <button class="fav" data-fav="custom">
             <span class="fav-icon add"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span>
-            <span class="fav-label">Add</span><span class="fav-sub">&nbsp;</span>
+            <span class="fav-label" id="favCustomLabel">Add</span><span class="fav-sub" id="favCustomSub">Set in search</span>
           </button>
         </div>
 
@@ -253,6 +253,7 @@
           <div class="dest-fav-row">
             <button id="btnSetAsHome" class="pill-btn-small">🏠 Set as Home</button>
             <button id="btnSetAsWork" class="pill-btn-small">💼 Set as Work</button>
+            <button id="btnSetAsCustom" class="pill-btn-small">⭐ Save Favorite</button>
           </div>
 
           <div class="dest-actions">

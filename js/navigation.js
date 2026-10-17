@@ -546,6 +546,8 @@ export class NavigationController {
       clearInterval(this.simulationTimer);
       this.simulationTimer = null;
     }
+    const simSpan = document.querySelector('#btnNavSimulate span');
+    if (simSpan) simSpan.textContent = 'Test';
     if (this.hazardAlertEl) this.hazardAlertEl.classList.add('hidden');
   }
 }

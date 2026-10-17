@@ -27,6 +27,7 @@ const SHELL = [
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
   'icons/pig.svg',
+  'icons/pitty.svg',
 ];
 
 self.addEventListener('install', (event) => {
