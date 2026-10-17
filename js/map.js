@@ -52,12 +52,15 @@ export class MapController {
   }
 
   basemapConfig() {
+    const isSat = settings.mapType === 'satellite';
     const driving = settings.mapType === 'driving';
     return {
       lightPreset: this.lightPreset,
-      showPointOfInterestLabels: !driving,
-      showTransitLabels: !driving,
-      show3dObjects: true,
+      showPointOfInterestLabels: false,
+      showTransitLabels: !driving && isSat,
+      showRoadLabels: false,
+      showPlaceLabels: false,
+      show3dObjects: isSat,
     };
   }
 
@@ -157,6 +160,14 @@ export class MapController {
     const m = this.map;
     this.applyConfig();
 
+    // Vector source for Apple Maps cartography, road hierarchy, POIs & highway shields
+    if (!m.getSource('wa-streets')) {
+      m.addSource('wa-streets', {
+        type: 'vector',
+        url: 'mapbox://mapbox.mapbox-streets-v8',
+      });
+    }
+
     // 3D terrain (used in 3D / Free-Roam).
     if (!m.getSource('mapbox-dem')) {
       m.addSource('mapbox-dem', {
@@ -168,7 +179,10 @@ export class MapController {
     }
     this.applyTerrain();
 
-    // Live traffic — Apple-style: only slow (orange) and jammed (red) roads are colored.
+    // Apple Maps iOS 18 Vector Cartography (Land, Parks, Water, Buildings, Roads)
+    this.applyAppleCartography();
+
+    // Live traffic — Apple Maps style: orange (slow) and red (jammed) directly on road carriageways
     if (!m.getSource('traffic')) {
       m.addSource('traffic', { type: 'vector', url: 'mapbox://mapbox.mapbox-traffic-v1' });
     }
@@ -186,11 +200,11 @@ export class MapController {
             'match', ['get', 'congestion'],
             'moderate', '#ff9500',
             'heavy', '#ff3b30',
-            'severe', '#b3122a',
+            'severe', '#d70015',
             '#ff9500',
           ],
-          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 9, 1.2, 13, 3, 16, 6, 19, 14],
-          'line-offset': ['interpolate', ['exponential', 1.5], ['zoom'], 9, 0.4, 13, 1.5, 16, 3, 19, 8],
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 9, 1.5, 13, 3.6, 16, 7, 19, 15],
+          'line-offset': ['interpolate', ['exponential', 1.5], ['zoom'], 9, 0.4, 13, 1.3, 16, 2.6, 19, 6.5],
           'line-emissive-strength': 1,
         },
       });
@@ -209,42 +223,6 @@ export class MapController {
       });
     }
     this.updateAccuracy();
-
-    // Apple Maps 3D Building Extrusions & Landmarks with warm ambient occlusion
-    const bldSrc = m.getSource('composite') ? 'composite' : m.getSource('wa-streets') ? 'wa-streets' : null;
-    if (bldSrc && !m.getLayer('apple-3d-buildings')) {
-      m.addLayer({
-        id: 'apple-3d-buildings',
-        source: bldSrc,
-        'source-layer': 'building',
-        filter: ['==', 'extrude', 'true'],
-        type: 'fill-extrusion',
-        minzoom: 14,
-        slot: 'middle',
-        paint: {
-          'fill-extrusion-color': [
-            'interpolate', ['linear'], ['get', 'height'],
-            0, '#f4f1ea',
-            40, '#ece6dc',
-            100, '#dfd7cc',
-            250, '#cfc7b9',
-          ],
-          'fill-extrusion-height': [
-            'interpolate', ['linear'], ['zoom'],
-            14, 0,
-            14.5, ['get', 'height'],
-          ],
-          'fill-extrusion-base': [
-            'interpolate', ['linear'], ['zoom'],
-            14, 0,
-            14.5, ['get', 'min_height'],
-          ],
-          'fill-extrusion-opacity': 0.9,
-          'fill-extrusion-ambient-occlusion-intensity': 0.35,
-          'fill-extrusion-ambient-occlusion-radius': 3.5,
-        },
-      });
-    }
 
     // Apple Maps alternative route line layers (underneath active route, clickable)
     if (!m.getSource('routes-alt')) m.addSource('routes-alt', { type: 'geojson', data: EMPTY });
@@ -370,9 +348,505 @@ export class MapController {
       });
     }
 
+    // Apple Maps 3D Building Extrusions & Landmarks with warm ambient occlusion
+    if (!m.getLayer('apple-3d-buildings')) {
+      m.addLayer({
+        id: 'apple-3d-buildings',
+        source: 'wa-streets',
+        'source-layer': 'building',
+        filter: ['==', 'extrude', 'true'],
+        type: 'fill-extrusion',
+        minzoom: 14.2,
+        slot: 'middle',
+        paint: {
+          'fill-extrusion-color': [
+            'interpolate', ['linear'], ['get', 'height'],
+            0, '#f4f1ea',
+            40, '#ece6dc',
+            100, '#dfd7cc',
+            250, '#cfc7b9',
+          ],
+          'fill-extrusion-height': [
+            'interpolate', ['linear'], ['zoom'],
+            14.2, 0,
+            14.8, ['get', 'height'],
+          ],
+          'fill-extrusion-base': [
+            'interpolate', ['linear'], ['zoom'],
+            14.2, 0,
+            14.8, ['get', 'min_height'],
+          ],
+          'fill-extrusion-opacity': 0.88,
+          'fill-extrusion-ambient-occlusion-intensity': 0.35,
+          'fill-extrusion-ambient-occlusion-radius': 3.5,
+        },
+      });
+    }
+
     this.applyWaShields();
+    this.updateCartographyColors();
+    this.applyCartographyVisibility();
     if (settings.customLocation) {
       this.applyCustomLocation();
+    }
+  }
+
+  /**
+   * Builds Apple Maps iOS 18 vector cartography layers:
+   * - Warm porcelain background (#f5f4f0) & warm sand commercial pockets (#efe6d5)
+   * - Pastel mint-sage parks & woodlands (#c3ecc7 / #bae8be)
+   * - Sky-azure water (#92d3f7) with soft shoreline casing
+   * - Cool lavender-slate residential streets transitioning to crisp white at close zoom
+   * - Signature Apple Maps steel-slate blue-gray freeways (#96a5b9) & ramps (#a5b3c6)
+   */
+  applyAppleCartography() {
+    const m = this.map;
+    if (!m) return;
+
+    // 1. Warm Porcelain Land Background
+    if (!m.getLayer('apple-bg')) {
+      m.addLayer({
+        id: 'apple-bg',
+        type: 'background',
+        slot: 'middle',
+        paint: {
+          'background-color': '#f5f4f0',
+          'background-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 2. Commercial, Retail, School & Hospital Warm Sand Zones
+    if (!m.getLayer('apple-landuse-urban')) {
+      m.addLayer({
+        id: 'apple-landuse-urban',
+        type: 'fill',
+        source: 'wa-streets',
+        'source-layer': 'landuse',
+        slot: 'middle',
+        filter: [
+          'in',
+          ['get', 'class'],
+          ['literal', ['commercial_area', 'retail', 'school', 'hospital', 'industrial', 'airport', 'sand']],
+        ],
+        paint: {
+          'fill-color': '#efe6d5',
+          'fill-opacity': 0.78,
+          'fill-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 3. Parks, Forests & Green Spaces (Pastel Mint-Sage)
+    if (!m.getLayer('apple-landuse-park')) {
+      m.addLayer({
+        id: 'apple-landuse-park',
+        type: 'fill',
+        source: 'wa-streets',
+        'source-layer': 'landuse',
+        slot: 'middle',
+        filter: [
+          'in',
+          ['get', 'class'],
+          ['literal', ['park', 'national_park', 'wood', 'grass', 'pitch', 'scrub', 'cemetery', 'golf_course', 'agriculture']],
+        ],
+        paint: {
+          'fill-color': [
+            'match',
+            ['get', 'class'],
+            ['park', 'pitch', 'golf_course'],
+            '#bae8be',
+            '#c4ecc8',
+          ],
+          'fill-opacity': 0.92,
+          'fill-emissive-strength': 1,
+        },
+      });
+    }
+
+    if (!m.getLayer('apple-landuse-overlay')) {
+      m.addLayer({
+        id: 'apple-landuse-overlay',
+        type: 'fill',
+        source: 'wa-streets',
+        'source-layer': 'landuse_overlay',
+        slot: 'middle',
+        filter: ['in', ['get', 'class'], ['literal', ['national_park', 'wetland', 'wetland_noveg']]],
+        paint: {
+          'fill-color': '#c2ecc6',
+          'fill-opacity': 0.65,
+          'fill-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 4. Waterways (Rivers, Streams, Canals)
+    if (!m.getLayer('apple-waterway')) {
+      m.addLayer({
+        id: 'apple-waterway',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'waterway',
+        slot: 'middle',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#92d3f7',
+          'line-width': ['interpolate', ['exponential', 1.4], ['zoom'], 8, 0.8, 12, 1.8, 16, 4.5],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 5. Water Bodies (Lakes, Bays, Puget Sound)
+    if (!m.getLayer('apple-water')) {
+      m.addLayer({
+        id: 'apple-water',
+        type: 'fill',
+        source: 'wa-streets',
+        'source-layer': 'water',
+        slot: 'middle',
+        paint: {
+          'fill-color': '#92d3f7',
+          'fill-emissive-strength': 1,
+        },
+      });
+    }
+    if (!m.getLayer('apple-water-line')) {
+      m.addLayer({
+        id: 'apple-water-line',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'water',
+        slot: 'middle',
+        paint: {
+          'line-color': '#80c4ec',
+          'line-width': 1,
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 6. Aeroway (Runways & Taxiways)
+    if (!m.getLayer('apple-aeroway')) {
+      m.addLayer({
+        id: 'apple-aeroway',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'aeroway',
+        slot: 'middle',
+        paint: {
+          'line-color': '#e2e0d8',
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 10, 1.5, 15, 10],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 7. 2D Building Footprints (Warm Stone)
+    if (!m.getLayer('apple-buildings-2d')) {
+      m.addLayer({
+        id: 'apple-buildings-2d',
+        type: 'fill',
+        source: 'wa-streets',
+        'source-layer': 'building',
+        minzoom: 13,
+        slot: 'middle',
+        paint: {
+          'fill-color': '#eae5dc',
+          'fill-outline-color': '#ded8cc',
+          'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.35, 14.5, 0.75],
+          'fill-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 8. Park Trails & Pedestrian Paths
+    if (!m.getLayer('apple-road-path')) {
+      m.addLayer({
+        id: 'apple-road-path',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 13,
+        slot: 'middle',
+        filter: ['in', ['get', 'class'], ['literal', ['path', 'pedestrian', 'steps', 'track']]],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#b4c4b6',
+          'line-dasharray': [2, 1.6],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1.0, 16, 2.0],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 9. Minor / Residential Streets Casing & Fill
+    // At mid-zooms (11-13.4), residential streets are Apple Maps' signature cool slate-lavender (#cfd7e4);
+    // at close zooms (14+), they smoothly open into crisp white streets with cool-slate casings.
+    if (!m.getLayer('apple-road-street-casing')) {
+      m.addLayer({
+        id: 'apple-road-street-casing',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 13.2,
+        slot: 'middle',
+        filter: ['in', ['get', 'class'], ['literal', ['street', 'street_limited', 'service']]],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#c4cddc',
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 13.2, 2.4, 15, 5.8, 18, 16],
+          'line-opacity': ['interpolate', ['linear'], ['zoom'], 13.2, 0, 13.8, 1],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+    if (!m.getLayer('apple-road-street')) {
+      m.addLayer({
+        id: 'apple-road-street',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 10.8,
+        slot: 'middle',
+        filter: ['in', ['get', 'class'], ['literal', ['street', 'street_limited', 'service']]],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': [
+            'interpolate', ['linear'], ['zoom'],
+            11, '#d2d9e5',
+            13.3, '#cfd7e4',
+            14.2, '#ffffff',
+          ],
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 10.8, 0.85, 12.5, 1.55, 13.5, 2.2, 15, 4.2, 18, 13],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 10. Secondary & Tertiary Collector Roads
+    if (!m.getLayer('apple-road-secondary-casing')) {
+      m.addLayer({
+        id: 'apple-road-secondary-casing',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 11,
+        slot: 'middle',
+        filter: ['in', ['get', 'class'], ['literal', ['secondary', 'tertiary', 'secondary_link', 'tertiary_link']]],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#b5c0d1',
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 11, 2.6, 13, 4.5, 15, 8.2, 18, 22],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+    if (!m.getLayer('apple-road-secondary')) {
+      m.addLayer({
+        id: 'apple-road-secondary',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 9.5,
+        slot: 'middle',
+        filter: ['in', ['get', 'class'], ['literal', ['secondary', 'tertiary', 'secondary_link', 'tertiary_link']]],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': [
+            'interpolate', ['linear'], ['zoom'],
+            10, '#c9d2e1',
+            12.8, '#dce2ec',
+            13.8, '#ffffff',
+          ],
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 9.5, 1.2, 11, 1.8, 13, 3.1, 15, 6.4, 18, 18.5],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 11. Primary Arterial Roads & State Route Surface Corridors
+    if (!m.getLayer('apple-road-primary-casing')) {
+      m.addLayer({
+        id: 'apple-road-primary-casing',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 7.5,
+        slot: 'middle',
+        filter: ['in', ['get', 'class'], ['literal', ['primary', 'primary_link']]],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#a3b0c4',
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 7.5, 2.0, 11, 3.8, 13, 6.0, 15, 10.6, 18, 26],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+    if (!m.getLayer('apple-road-primary')) {
+      m.addLayer({
+        id: 'apple-road-primary',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 6.5,
+        slot: 'middle',
+        filter: ['in', ['get', 'class'], ['literal', ['primary', 'primary_link']]],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': [
+            'interpolate', ['linear'], ['zoom'],
+            8, '#bcc7d8',
+            12, '#d5dde9',
+            13.6, '#e3e8f0',
+            15, '#ffffff',
+          ],
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 6.5, 1.2, 11, 2.6, 13, 4.4, 15, 8.4, 18, 22],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 12. Freeway Ramps / Interchange Loops (Apple Maps Steel-Slate)
+    if (!m.getLayer('apple-road-ramp-casing')) {
+      m.addLayer({
+        id: 'apple-road-ramp-casing',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 10,
+        slot: 'middle',
+        filter: ['in', ['get', 'class'], ['literal', ['motorway_link', 'trunk_link']]],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#8392a7',
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 10, 2.4, 13, 4.6, 15, 7.6, 18, 16.5],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+    if (!m.getLayer('apple-road-ramp')) {
+      m.addLayer({
+        id: 'apple-road-ramp',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 10,
+        slot: 'middle',
+        filter: ['in', ['get', 'class'], ['literal', ['motorway_link', 'trunk_link']]],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#a4b2c5',
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 10, 1.5, 13, 3.0, 15, 5.4, 18, 12.8],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 13. Freeways / Interstates & Divided State Highways (Signature Apple Maps Steel-Slate #95a4b8)
+    if (!m.getLayer('apple-road-motorway-casing')) {
+      m.addLayer({
+        id: 'apple-road-motorway-casing',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 5,
+        slot: 'middle',
+        filter: [
+          'all',
+          ['in', ['get', 'class'], ['literal', ['motorway', 'trunk']]],
+          ['!=', ['get', 'structure'], 'bridge'],
+        ],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#7c8ba2',
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 5, 2.0, 8, 3.6, 11, 5.8, 13, 8.6, 15, 14.2, 18, 31],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+    if (!m.getLayer('apple-road-motorway')) {
+      m.addLayer({
+        id: 'apple-road-motorway',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 5,
+        slot: 'middle',
+        filter: [
+          'all',
+          ['in', ['get', 'class'], ['literal', ['motorway', 'trunk']]],
+          ['!=', ['get', 'structure'], 'bridge'],
+        ],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#95a4b8',
+          'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 5, 1.2, 8, 2.4, 11, 4.2, 13, 6.5, 15, 11.4, 18, 26],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+
+    // 14. Freeway Bridges & Flyover Overpasses (Stacked with crisp overpass casing)
+    if (!m.getLayer('apple-road-motorway-bridge-casing')) {
+      m.addLayer({
+        id: 'apple-road-motorway-bridge-casing',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 9,
+        slot: 'middle',
+        filter: [
+          'all',
+          ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'motorway_link', 'trunk_link']]],
+          ['==', ['get', 'structure'], 'bridge'],
+        ],
+        layout: { 'line-cap': 'butt', 'line-join': 'round' },
+        paint: {
+          'line-color': '#6e7e96',
+          'line-width': [
+            'interpolate', ['exponential', 1.5], ['zoom'],
+            9, ['match', ['get', 'class'], ['motorway_link', 'trunk_link'], 2.4, 4.2],
+            13, ['match', ['get', 'class'], ['motorway_link', 'trunk_link'], 4.8, 9.0],
+            15, ['match', ['get', 'class'], ['motorway_link', 'trunk_link'], 8.0, 14.8],
+            18, ['match', ['get', 'class'], ['motorway_link', 'trunk_link'], 17.0, 32.0],
+          ],
+          'line-emissive-strength': 1,
+        },
+      });
+    }
+    if (!m.getLayer('apple-road-motorway-bridge')) {
+      m.addLayer({
+        id: 'apple-road-motorway-bridge',
+        type: 'line',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        minzoom: 9,
+        slot: 'middle',
+        filter: [
+          'all',
+          ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'motorway_link', 'trunk_link']]],
+          ['==', ['get', 'structure'], 'bridge'],
+        ],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'class'],
+            ['motorway_link', 'trunk_link'],
+            '#a4b2c5',
+            '#95a4b8',
+          ],
+          'line-width': [
+            'interpolate', ['exponential', 1.5], ['zoom'],
+            9, ['match', ['get', 'class'], ['motorway_link', 'trunk_link'], 1.5, 2.8],
+            13, ['match', ['get', 'class'], ['motorway_link', 'trunk_link'], 3.0, 6.5],
+            15, ['match', ['get', 'class'], ['motorway_link', 'trunk_link'], 5.4, 11.4],
+            18, ['match', ['get', 'class'], ['motorway_link', 'trunk_link'], 12.8, 26.0],
+          ],
+          'line-emissive-strength': 1,
+        },
+      });
     }
   }
 
@@ -395,14 +869,6 @@ export class MapController {
   applyWaShields() {
     const m = this.map;
     if (!m) return;
-
-    // Vector source for road network attributes
-    if (!m.getSource('wa-streets')) {
-      m.addSource('wa-streets', {
-        type: 'vector',
-        url: 'mapbox://mapbox.mapbox-streets-v8',
-      });
-    }
 
     // Pre-cache prominent Washington state routes
     COMMON_WA_ROUTES.forEach(async (ref) => {
@@ -448,193 +914,11 @@ export class MapController {
       }
     });
 
-    // Apple Maps Interstate Shields — Line placement (zoom 6+)
-    if (!m.getLayer('apple-interstate-lines')) {
-      m.addLayer({
-        id: 'apple-interstate-lines',
-        type: 'symbol',
-        source: 'wa-streets',
-        'source-layer': 'road',
-        slot: 'top',
-        minzoom: 6,
-        filter: [
-          'all',
-          ['in', ['get', 'shield'], ['literal', ['us-interstate', 'us-interstate-duplex', 'us-interstate-truck']]],
-          ['has', 'ref'],
-        ],
-        layout: {
-          'icon-image': ['concat', 'interstate-', ['get', 'ref']],
-          'icon-size': [
-            'interpolate', ['linear'], ['zoom'],
-            6, 0.44,
-            10, 0.50,
-            13, 0.56,
-            16, 0.64,
-          ],
-          'symbol-placement': 'line',
-          'symbol-spacing': 340,
-          'icon-rotation-alignment': 'viewport',
-          'icon-pitch-alignment': 'viewport',
-          'icon-allow-overlap': false,
-          'icon-ignore-placement': false,
-          'icon-padding': 12,
-        },
-      });
-    }
+    // Note: In Mapbox GL JS, symbol layers added LATER have HIGHER collision priority.
+    // Order from lowest to highest priority:
+    // 1. POI badges & labels -> 2. Water labels -> 3. Street labels -> 4. Green Corridor labels -> 5. Place/City labels -> 6. Highway Shields
 
-    // Apple Maps Interstate Shields — Point placement at lower/mid zooms (zoom 5-11)
-    if (!m.getLayer('apple-interstate-points')) {
-      m.addLayer({
-        id: 'apple-interstate-points',
-        type: 'symbol',
-        source: 'wa-streets',
-        'source-layer': 'road',
-        slot: 'top',
-        minzoom: 5,
-        maxzoom: 11,
-        filter: [
-          'all',
-          ['==', ['geometry-type'], 'Point'],
-          ['in', ['get', 'shield'], ['literal', ['us-interstate', 'us-interstate-duplex']]],
-          ['has', 'ref'],
-        ],
-        layout: {
-          'icon-image': ['concat', 'interstate-', ['get', 'ref']],
-          'icon-size': 0.50,
-          'symbol-placement': 'point',
-          'icon-allow-overlap': false,
-          'icon-padding': 10,
-        },
-      });
-    }
-
-    // US Highway Shields — Line placement (zooms 7+)
-    if (!m.getLayer('apple-us-highway-lines')) {
-      m.addLayer({
-        id: 'apple-us-highway-lines',
-        type: 'symbol',
-        source: 'wa-streets',
-        'source-layer': 'road',
-        slot: 'top',
-        minzoom: 7,
-        filter: [
-          'all',
-          ['in', ['get', 'shield'], ['literal', ['us-highway', 'us-highway-duplex']]],
-          ['has', 'ref'],
-        ],
-        layout: {
-          'icon-image': ['concat', 'us-hwy-', ['get', 'ref']],
-          'icon-size': [
-            'interpolate', ['linear'], ['zoom'],
-            7, 0.44,
-            11, 0.50,
-            14, 0.56,
-            17, 0.64,
-          ],
-          'symbol-placement': 'line',
-          'symbol-spacing': 340,
-          'icon-rotation-alignment': 'viewport',
-          'icon-pitch-alignment': 'viewport',
-          'icon-allow-overlap': false,
-          'icon-ignore-placement': false,
-          'icon-padding': 12,
-        },
-      });
-    }
-
-    // US Highway Shields — Point placement at lower/mid zooms (6-11)
-    if (!m.getLayer('apple-us-highway-points')) {
-      m.addLayer({
-        id: 'apple-us-highway-points',
-        type: 'symbol',
-        source: 'wa-streets',
-        'source-layer': 'road',
-        slot: 'top',
-        minzoom: 6,
-        maxzoom: 11,
-        filter: [
-          'all',
-          ['==', ['geometry-type'], 'Point'],
-          ['in', ['get', 'shield'], ['literal', ['us-highway', 'us-highway-duplex']]],
-          ['has', 'ref'],
-        ],
-        layout: {
-          'icon-image': ['concat', 'us-hwy-', ['get', 'ref']],
-          'icon-size': 0.50,
-          'symbol-placement': 'point',
-          'icon-allow-overlap': false,
-          'icon-padding': 10,
-        },
-      });
-    }
-
-    // Line placement layer for Washington State Routes (zooms 8+)
-    if (!m.getLayer('wa-state-routes-lines')) {
-      m.addLayer({
-        id: 'wa-state-routes-lines',
-        type: 'symbol',
-        source: 'wa-streets',
-        'source-layer': 'road',
-        slot: 'top',
-        minzoom: 8,
-        filter: [
-          'all',
-          ['==', ['get', 'iso_3166_2'], 'US-WA'],
-          ['!=', ['get', 'shield'], 'us-interstate'],
-          ['!=', ['get', 'shield'], 'us-highway'],
-          ['!=', ['get', 'shield'], 'us-interstate-duplex'],
-          ['!=', ['get', 'shield'], 'us-highway-duplex'],
-          ['has', 'ref'],
-        ],
-        layout: {
-          'icon-image': ['concat', 'wa-sr-', ['get', 'ref']],
-          'icon-size': [
-            'interpolate', ['linear'], ['zoom'],
-            8, 0.44,
-            11, 0.50,
-            14, 0.56,
-            17, 0.64,
-          ],
-          'symbol-placement': 'line',
-          'symbol-spacing': 340,
-          'icon-rotation-alignment': 'viewport',
-          'icon-pitch-alignment': 'viewport',
-          'icon-allow-overlap': false,
-          'icon-ignore-placement': false,
-          'icon-padding': 12,
-        },
-      });
-    }
-
-    // Point placement layer for Washington State Routes at intermediate zooms (6-11)
-    if (!m.getLayer('wa-state-routes-points')) {
-      m.addLayer({
-        id: 'wa-state-routes-points',
-        type: 'symbol',
-        source: 'wa-streets',
-        'source-layer': 'road',
-        slot: 'top',
-        minzoom: 6,
-        maxzoom: 11,
-        filter: [
-          'all',
-          ['==', ['geometry-type'], 'Point'],
-          ['==', ['get', 'iso_3166_2'], 'US-WA'],
-          ['!=', ['get', 'shield'], 'us-interstate'],
-          ['!=', ['get', 'shield'], 'us-highway'],
-          ['has', 'ref'],
-        ],
-        layout: {
-          'icon-image': ['concat', 'wa-sr-', ['get', 'ref']],
-          'icon-size': 0.50,
-          'symbol-placement': 'point',
-          'icon-allow-overlap': false,
-          'icon-padding': 10,
-        },
-      });
-    }
-
-    // Apple Maps Point of Interest (POI) Circular Badges & Labels (Parks, Shops, Dining, Transit)
+    // 1. Apple Maps Point of Interest (POI) Circular Badges & Labels (Parks, Shops, Dining, Transit)
     if (!m.getLayer('apple-poi-symbols')) {
       m.addLayer({
         id: 'apple-poi-symbols',
@@ -664,17 +948,17 @@ export class MapController {
           ],
           'icon-size': [
             'interpolate', ['linear'], ['zoom'],
-            12, 0.40,
-            14, 0.48,
-            17, 0.56,
+            12, 0.42,
+            14, 0.50,
+            17, 0.58,
           ],
           'symbol-placement': 'point',
           'icon-allow-overlap': false,
           'text-allow-overlap': false,
           'icon-ignore-placement': false,
-          'icon-padding': 6,
+          'icon-padding': 8,
           'text-field': ['get', 'name'],
-          'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+          'text-font': ['Arial Unicode MS Bold', 'DIN Pro Medium'],
           'text-size': [
             'interpolate', ['linear'], ['zoom'],
             12, 10.5,
@@ -704,7 +988,342 @@ export class MapController {
           ],
           'text-halo-color': this.lightPreset === 'night' ? '#1c1c1e' : '#ffffff',
           'text-halo-width': 2.2,
-          'text-halo-blur': 0.8,
+          'text-halo-blur': 0.6,
+        },
+      });
+    }
+
+    // 2. Apple Maps Water Labels (Lakes, Bays, Sounds)
+    if (!m.getLayer('apple-water-labels')) {
+      m.addLayer({
+        id: 'apple-water-labels',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'natural_label',
+        slot: 'top',
+        minzoom: 8,
+        filter: ['in', ['get', 'class'], ['literal', ['water', 'bay', 'sea', 'ocean', 'reservoir', 'stream', 'river', 'canal']]],
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-font': ['Arial Unicode MS Regular', 'DIN Pro Italic'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 8, 11, 13, 13.5, 16, 15.5],
+          'text-max-width': 7,
+          'text-letter-spacing': 0.04,
+        },
+        paint: {
+          'text-color': this.lightPreset === 'night' ? '#67b7e8' : '#2f7ba8',
+          'text-halo-color': this.lightPreset === 'night' ? '#0e2841' : '#bce6fc',
+          'text-halo-width': 1.8,
+        },
+      });
+    }
+
+    // 3. Apple Maps Local & Arterial Street Name Labels
+    if (!m.getLayer('apple-road-labels')) {
+      m.addLayer({
+        id: 'apple-road-labels',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        slot: 'top',
+        minzoom: 12,
+        filter: [
+          'all',
+          ['has', 'name'],
+          ['in', ['get', 'class'], ['literal', ['primary', 'secondary', 'tertiary', 'street', 'street_limited']]],
+        ],
+        layout: {
+          'symbol-placement': 'line',
+          'symbol-spacing': 320,
+          'text-field': ['get', 'name'],
+          'text-font': ['Arial Unicode MS Regular', 'DIN Pro Medium'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 12, 10.5, 14, 12, 17, 14],
+          'text-rotation-alignment': 'map',
+          'text-pitch-alignment': 'viewport',
+          'text-padding': 8,
+        },
+        paint: {
+          'text-color': this.lightPreset === 'night' ? '#b0bdd1' : '#4a5363',
+          'text-halo-color': this.lightPreset === 'night' ? '#1b222c' : '#ffffff',
+          'text-halo-width': 2.2,
+        },
+      });
+    }
+
+    // 4. Apple Maps Green Corridor & Trail Labels (e.g. "5 SnoCo", "Burke-Gilman Trail")
+    if (!m.getSource('apple-corridors')) {
+      m.addSource('apple-corridors', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [
+            { type: 'Feature', properties: { name: '5 SnoCo' }, geometry: { type: 'Point', coordinates: [-122.2735, 47.8135] } },
+            { type: 'Feature', properties: { name: '5 SnoCo' }, geometry: { type: 'Point', coordinates: [-122.3095, 47.7985] } },
+            { type: 'Feature', properties: { name: '405 Express' }, geometry: { type: 'Point', coordinates: [-122.1865, 47.6920] } },
+            { type: 'Feature', properties: { name: '520 Bridge' }, geometry: { type: 'Point', coordinates: [-122.2560, 47.6410] } },
+            { type: 'Feature', properties: { name: 'Burke-Gilman Trail' }, geometry: { type: 'Point', coordinates: [-122.2780, 47.6790] } },
+            { type: 'Feature', properties: { name: 'Sammamish River Trail' }, geometry: { type: 'Point', coordinates: [-122.1490, 47.7160] } },
+            { type: 'Feature', properties: { name: 'Interurban Trail' }, geometry: { type: 'Point', coordinates: [-122.3190, 47.7880] } },
+          ],
+        },
+      });
+    }
+    if (!m.getLayer('apple-corridor-labels')) {
+      m.addLayer({
+        id: 'apple-corridor-labels',
+        type: 'symbol',
+        source: 'apple-corridors',
+        slot: 'top',
+        minzoom: 10.5,
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-font': ['Arial Unicode MS Bold', 'DIN Pro Bold'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 10.5, 11.5, 13, 13.5, 16, 15.5],
+          'text-padding': 10,
+          'text-allow-overlap': false,
+        },
+        paint: {
+          'text-color': this.lightPreset === 'night' ? '#4ade80' : '#116e30',
+          'text-halo-color': this.lightPreset === 'night' ? '#1b222c' : '#ffffff',
+          'text-halo-width': 2.6,
+          'text-halo-blur': 0.4,
+        },
+      });
+    }
+
+    // 5. Apple Maps Place, Neighborhood & City Labels (Wide rounded sans-serif with crisp white halo)
+    if (!m.getLayer('apple-place-labels')) {
+      m.addLayer({
+        id: 'apple-place-labels',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'place_label',
+        slot: 'top',
+        minzoom: 6,
+        filter: ['in', ['get', 'type'], ['literal', ['city', 'town', 'village', 'suburb', 'neighbourhood', 'quarter']]],
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-font': ['Arial Unicode MS Bold', 'DIN Pro Bold'],
+          'text-transform': [
+            'match',
+            ['get', 'type'],
+            ['suburb', 'neighbourhood', 'quarter'],
+            'uppercase',
+            'none',
+          ],
+          'text-letter-spacing': [
+            'match',
+            ['get', 'type'],
+            ['suburb', 'neighbourhood', 'quarter'],
+            0.09,
+            0.01,
+          ],
+          'text-size': [
+            'interpolate', ['linear'], ['zoom'],
+            8, ['match', ['get', 'type'], 'city', 14, 'town', 11.5, 10],
+            12, ['match', ['get', 'type'], 'city', 19, 'town', 14.5, 11.5],
+            15, ['match', ['get', 'type'], 'city', 23, 'town', 17, 13],
+          ],
+          'text-padding': 10,
+          'text-max-width': 8,
+        },
+        paint: {
+          'text-color': [
+            'match',
+            ['get', 'type'],
+            ['suburb', 'neighbourhood', 'quarter'],
+            this.lightPreset === 'night' ? '#98a3b3' : '#6c727d',
+            this.lightPreset === 'night' ? '#e5ebf5' : '#333740',
+          ],
+          'text-halo-color': this.lightPreset === 'night' ? '#1b222c' : '#ffffff',
+          'text-halo-width': 2.4,
+          'text-halo-blur': 0.5,
+        },
+      });
+    }
+
+    // 6. US Highway Shields — Point & Line placement
+    if (!m.getLayer('apple-us-highway-points')) {
+      m.addLayer({
+        id: 'apple-us-highway-points',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        slot: 'top',
+        minzoom: 6,
+        maxzoom: 11,
+        filter: [
+          'all',
+          ['==', ['geometry-type'], 'Point'],
+          ['in', ['get', 'shield'], ['literal', ['us-highway', 'us-highway-duplex']]],
+          ['has', 'ref'],
+          ['<=', ['length', ['get', 'ref']], 4],
+        ],
+        layout: {
+          'icon-image': ['concat', 'us-hwy-', ['get', 'ref']],
+          'icon-size': 0.62,
+          'symbol-placement': 'point',
+          'icon-allow-overlap': false,
+          'icon-padding': 12,
+        },
+      });
+    }
+    if (!m.getLayer('apple-us-highway-lines')) {
+      m.addLayer({
+        id: 'apple-us-highway-lines',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        slot: 'top',
+        minzoom: 7,
+        filter: [
+          'all',
+          ['in', ['get', 'shield'], ['literal', ['us-highway', 'us-highway-duplex']]],
+          ['has', 'ref'],
+          ['<=', ['length', ['get', 'ref']], 4],
+        ],
+        layout: {
+          'icon-image': ['concat', 'us-hwy-', ['get', 'ref']],
+          'icon-size': [
+            'interpolate', ['linear'], ['zoom'],
+            7, 0.54,
+            11, 0.64,
+            14, 0.74,
+            17, 0.82,
+          ],
+          'symbol-placement': 'line',
+          'symbol-spacing': 320,
+          'icon-rotation-alignment': 'viewport',
+          'icon-pitch-alignment': 'viewport',
+          'icon-allow-overlap': false,
+          'icon-ignore-placement': false,
+          'icon-padding': 14,
+        },
+      });
+    }
+
+    // 7. Washington State Route Shields (1:1 Charcoal Squircle + White Washington Bust)
+    if (!m.getLayer('wa-state-routes-points')) {
+      m.addLayer({
+        id: 'wa-state-routes-points',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        slot: 'top',
+        minzoom: 6,
+        maxzoom: 11,
+        filter: [
+          'all',
+          ['==', ['geometry-type'], 'Point'],
+          ['==', ['get', 'iso_3166_2'], 'US-WA'],
+          ['!=', ['get', 'shield'], 'us-interstate'],
+          ['!=', ['get', 'shield'], 'us-highway'],
+          ['has', 'ref'],
+          ['<=', ['length', ['get', 'ref']], 4],
+        ],
+        layout: {
+          'icon-image': ['concat', 'wa-sr-', ['get', 'ref']],
+          'icon-size': 0.62,
+          'symbol-placement': 'point',
+          'icon-allow-overlap': false,
+          'icon-padding': 12,
+        },
+      });
+    }
+    if (!m.getLayer('wa-state-routes-lines')) {
+      m.addLayer({
+        id: 'wa-state-routes-lines',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        slot: 'top',
+        minzoom: 8,
+        filter: [
+          'all',
+          ['==', ['get', 'iso_3166_2'], 'US-WA'],
+          ['!=', ['get', 'shield'], 'us-interstate'],
+          ['!=', ['get', 'shield'], 'us-highway'],
+          ['!=', ['get', 'shield'], 'us-interstate-duplex'],
+          ['!=', ['get', 'shield'], 'us-highway-duplex'],
+          ['has', 'ref'],
+          ['<=', ['length', ['get', 'ref']], 4],
+        ],
+        layout: {
+          'icon-image': ['concat', 'wa-sr-', ['get', 'ref']],
+          'icon-size': [
+            'interpolate', ['linear'], ['zoom'],
+            8, 0.56,
+            11, 0.66,
+            14, 0.76,
+            17, 0.84,
+          ],
+          'symbol-placement': 'line',
+          'symbol-spacing': 300,
+          'icon-rotation-alignment': 'viewport',
+          'icon-pitch-alignment': 'viewport',
+          'icon-allow-overlap': false,
+          'icon-ignore-placement': false,
+          'icon-padding': 12,
+        },
+      });
+    }
+
+    // 8. Apple Maps Interstate Shields (Added LAST for #1 highest collision priority: I-405, I-5, I-90)
+    if (!m.getLayer('apple-interstate-points')) {
+      m.addLayer({
+        id: 'apple-interstate-points',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        slot: 'top',
+        minzoom: 5,
+        maxzoom: 11,
+        filter: [
+          'all',
+          ['==', ['geometry-type'], 'Point'],
+          ['in', ['get', 'shield'], ['literal', ['us-interstate', 'us-interstate-duplex']]],
+          ['has', 'ref'],
+          ['<=', ['length', ['get', 'ref']], 4],
+        ],
+        layout: {
+          'icon-image': ['concat', 'interstate-', ['get', 'ref']],
+          'icon-size': 0.66,
+          'symbol-placement': 'point',
+          'icon-allow-overlap': false,
+          'icon-padding': 12,
+        },
+      });
+    }
+    if (!m.getLayer('apple-interstate-lines')) {
+      m.addLayer({
+        id: 'apple-interstate-lines',
+        type: 'symbol',
+        source: 'wa-streets',
+        'source-layer': 'road',
+        slot: 'top',
+        minzoom: 6,
+        filter: [
+          'all',
+          ['in', ['get', 'shield'], ['literal', ['us-interstate', 'us-interstate-duplex', 'us-interstate-truck']]],
+          ['has', 'ref'],
+          ['<=', ['length', ['get', 'ref']], 4],
+        ],
+        layout: {
+          'icon-image': ['concat', 'interstate-', ['get', 'ref']],
+          'icon-size': [
+            'interpolate', ['linear'], ['zoom'],
+            6, 0.56,
+            10, 0.68,
+            13, 0.78,
+            16, 0.88,
+          ],
+          'symbol-placement': 'line',
+          'symbol-spacing': 300,
+          'icon-rotation-alignment': 'viewport',
+          'icon-pitch-alignment': 'viewport',
+          'icon-allow-overlap': false,
+          'icon-ignore-placement': false,
+          'icon-padding': 12,
         },
       });
     }
@@ -715,6 +1334,135 @@ export class MapController {
     for (const [k, v] of Object.entries(this.basemapConfig())) {
       try { this.map.setConfigProperty('basemap', k, v); } catch { /* style not ready */ }
     }
+  }
+
+  applyCartographyVisibility() {
+    const m = this.map;
+    if (!m) return;
+    const isSat = settings.mapType === 'satellite';
+    const isDriving = settings.mapType === 'driving';
+    const baseVis = isSat ? 'none' : 'visible';
+
+    const baseLayers = [
+      'apple-bg',
+      'apple-landuse-urban',
+      'apple-landuse-park',
+      'apple-landuse-overlay',
+      'apple-waterway',
+      'apple-water',
+      'apple-water-line',
+      'apple-aeroway',
+      'apple-buildings-2d',
+      'apple-road-path',
+      'apple-road-street-casing',
+      'apple-road-street',
+      'apple-road-secondary-casing',
+      'apple-road-secondary',
+      'apple-road-primary-casing',
+      'apple-road-primary',
+      'apple-road-ramp-casing',
+      'apple-road-ramp',
+      'apple-road-motorway-casing',
+      'apple-road-motorway',
+      'apple-road-motorway-bridge-casing',
+      'apple-road-motorway-bridge',
+      'apple-3d-buildings',
+    ];
+    for (const id of baseLayers) {
+      if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', baseVis);
+    }
+    if (m.getLayer('apple-poi-symbols')) {
+      m.setLayoutProperty('apple-poi-symbols', 'visibility', isDriving ? 'none' : 'visible');
+    }
+  }
+
+  updateCartographyColors() {
+    const m = this.map;
+    if (!m) return;
+    const isNight = this.lightPreset === 'night';
+    const setPaint = (layer, prop, val) => {
+      if (m.getLayer(layer)) m.setPaintProperty(layer, prop, val);
+    };
+
+    // Base land, parks & water
+    setPaint('apple-bg', 'background-color', isNight ? '#1b222c' : '#f5f4f0');
+    setPaint('apple-landuse-urban', 'fill-color', isNight ? '#222a37' : '#efe6d5');
+    setPaint(
+      'apple-landuse-park',
+      'fill-color',
+      isNight
+        ? '#173026'
+        : ['match', ['get', 'class'], ['park', 'pitch', 'golf_course'], '#bae8be', '#c4ecc8']
+    );
+    setPaint('apple-landuse-overlay', 'fill-color', isNight ? '#173026' : '#c2ecc6');
+    setPaint('apple-waterway', 'line-color', isNight ? '#112c46' : '#92d3f7');
+    setPaint('apple-water', 'fill-color', isNight ? '#0e2841' : '#92d3f7');
+    setPaint('apple-water-line', 'line-color', isNight ? '#153656' : '#80c4ec');
+    setPaint('apple-aeroway', 'line-color', isNight ? '#28303e' : '#e2e0d8');
+    setPaint('apple-buildings-2d', 'fill-color', isNight ? '#242c3a' : '#eae5dc');
+    setPaint('apple-buildings-2d', 'fill-outline-color', isNight ? '#2d3646' : '#ded8cc');
+
+    // Roads
+    setPaint('apple-road-path', 'line-color', isNight ? '#2e3d37' : '#b4c4b6');
+    setPaint('apple-road-street-casing', 'line-color', isNight ? '#222a37' : '#c4cddc');
+    setPaint(
+      'apple-road-street',
+      'line-color',
+      isNight
+        ? '#313b4c'
+        : ['interpolate', ['linear'], ['zoom'], 11, '#d2d9e5', 13.3, '#cfd7e4', 14.2, '#ffffff']
+    );
+    setPaint('apple-road-secondary-casing', 'line-color', isNight ? '#242e3d' : '#b5c0d1');
+    setPaint(
+      'apple-road-secondary',
+      'line-color',
+      isNight
+        ? '#3b4659'
+        : ['interpolate', ['linear'], ['zoom'], 10, '#c9d2e1', 12.8, '#dce2ec', 13.8, '#ffffff']
+    );
+    setPaint('apple-road-primary-casing', 'line-color', isNight ? '#263142' : '#a3b0c4');
+    setPaint(
+      'apple-road-primary',
+      'line-color',
+      isNight
+        ? '#445166'
+        : ['interpolate', ['linear'], ['zoom'], 8, '#bcc7d8', 12, '#d5dde9', 13.6, '#e3e8f0', 15, '#ffffff']
+    );
+    setPaint('apple-road-ramp-casing', 'line-color', isNight ? '#1f2938' : '#8392a7');
+    setPaint('apple-road-ramp', 'line-color', isNight ? '#435369' : '#a4b2c5');
+    setPaint('apple-road-motorway-casing', 'line-color', isNight ? '#1e2736' : '#7c8ba2');
+    setPaint('apple-road-motorway', 'line-color', isNight ? '#4f617a' : '#95a4b8');
+    setPaint('apple-road-motorway-bridge-casing', 'line-color', isNight ? '#18202c' : '#6e7e96');
+    setPaint(
+      'apple-road-motorway-bridge',
+      'line-color',
+      isNight
+        ? '#526580'
+        : ['match', ['get', 'class'], ['motorway_link', 'trunk_link'], '#a4b2c5', '#95a4b8']
+    );
+
+    // Labels & Typography
+    setPaint('apple-poi-symbols', 'text-halo-color', isNight ? '#1c1c1e' : '#ffffff');
+    setPaint('apple-water-labels', 'text-color', isNight ? '#67b7e8' : '#2f7ba8');
+    setPaint('apple-water-labels', 'text-halo-color', isNight ? '#0e2841' : '#bce6fc');
+    setPaint('apple-road-labels', 'text-color', isNight ? '#b0bdd1' : '#4a5363');
+    setPaint('apple-road-labels', 'text-halo-color', isNight ? '#1b222c' : '#ffffff');
+    setPaint('apple-corridor-labels', 'text-color', isNight ? '#4ade80' : '#116e30');
+    setPaint('apple-corridor-labels', 'text-halo-color', isNight ? '#1b222c' : '#ffffff');
+    setPaint(
+      'apple-place-labels',
+      'text-color',
+      [
+        'match',
+        ['get', 'type'],
+        ['suburb', 'neighbourhood', 'quarter'],
+        isNight ? '#98a3b3' : '#6c727d',
+        isNight ? '#e5ebf5' : '#333740',
+      ]
+    );
+    setPaint('apple-place-labels', 'text-halo-color', isNight ? '#1b222c' : '#ffffff');
+
+    this.updateBuildingColors();
   }
 
   updateBuildingColors() {
@@ -742,12 +1490,7 @@ export class MapController {
     if (preset === this.lightPreset) return;
     this.lightPreset = preset;
     try { this.map?.setConfigProperty('basemap', 'lightPreset', preset); } catch { /* applied on style.load */ }
-    const m = this.map;
-    if (m && m.getLayer('apple-poi-symbols')) {
-      const isNight = preset === 'night';
-      m.setPaintProperty('apple-poi-symbols', 'text-halo-color', isNight ? '#1c1c1e' : '#ffffff');
-    }
-    this.updateBuildingColors();
+    this.updateCartographyColors();
   }
 
   setMapType(type) {
@@ -758,6 +1501,7 @@ export class MapController {
       this.map.setStyle(this.styleUrl, { config: { basemap: this.basemapConfig() } });
     } else {
       this.applyConfig();
+      this.applyCartographyVisibility();
       this.applyTraffic();
     }
   }

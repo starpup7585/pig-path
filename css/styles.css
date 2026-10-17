@@ -91,18 +91,20 @@ svg { display: block; }
   display: grid;
   place-items: center;
   background:
-    radial-gradient(circle at 30% 25%, #cfe8c0 0 14%, transparent 15%),
-    radial-gradient(circle at 75% 60%, #bcdcf5 0 12%, transparent 13%),
-    linear-gradient(115deg, transparent 47%, #fff 47% 49%, transparent 49%),
-    linear-gradient(25deg, transparent 62%, #fff 62% 64%, transparent 64%),
-    #f1ede4;
+    radial-gradient(circle at 30% 25%, #bae8be 0 14%, transparent 15%),
+    radial-gradient(circle at 75% 60%, #92d3f7 0 12%, transparent 13%),
+    linear-gradient(115deg, transparent 46.5%, #95a4b8 46.5% 49.5%, transparent 49.5%),
+    linear-gradient(25deg, transparent 62%, #cfd7e4 62% 64%, transparent 64%),
+    #f5f4f0;
   transition: opacity 0.6s;
 }
 html[data-theme='dark'] .map-placeholder {
   background:
-    linear-gradient(115deg, transparent 47%, #3a3a3e 47% 49%, transparent 49%),
-    linear-gradient(25deg, transparent 62%, #3a3a3e 62% 64%, transparent 64%),
-    #1d1f24;
+    radial-gradient(circle at 30% 25%, #173026 0 14%, transparent 15%),
+    radial-gradient(circle at 75% 60%, #0e2841 0 12%, transparent 13%),
+    linear-gradient(115deg, transparent 46.5%, #4f617a 46.5% 49.5%, transparent 49.5%),
+    linear-gradient(25deg, transparent 62%, #313b4c 62% 64%, transparent 64%),
+    #1b222c;
 }
 .placeholder-pig {
   font-size: 64px;
@@ -775,18 +777,18 @@ html[data-theme='dark'] .modal-small .group { background: #2c2c2e; }
 .map-types button.active span { color: var(--blue); font-weight: 600; }
 .thumb.explore {
   background:
-    linear-gradient(115deg, transparent 46%, #fff 46% 51%, transparent 51%),
-    linear-gradient(20deg, transparent 60%, #fff 60% 64%, transparent 64%),
-    radial-gradient(circle at 25% 28%, #b8e3a5 0 22%, transparent 23%),
-    radial-gradient(circle at 82% 78%, #a9d4f5 0 20%, transparent 21%),
-    #f3efe6;
+    linear-gradient(115deg, transparent 45.5%, #95a4b8 45.5% 51.5%, transparent 51.5%),
+    linear-gradient(20deg, transparent 60%, #cfd7e4 60% 64%, transparent 64%),
+    radial-gradient(circle at 25% 28%, #bae8be 0 22%, transparent 23%),
+    radial-gradient(circle at 82% 78%, #92d3f7 0 20%, transparent 21%),
+    #f5f4f0;
 }
 .thumb.driving {
   background:
     linear-gradient(115deg, transparent 45%, #ff9500 45% 52%, transparent 52%),
     linear-gradient(20deg, transparent 59%, #ff3b30 59% 65%, transparent 65%),
-    linear-gradient(160deg, transparent 30%, #fff 30% 33%, transparent 33%),
-    #e8e6e1;
+    linear-gradient(160deg, transparent 29%, #95a4b8 29% 33.5%, transparent 33.5%),
+    #f5f4f0;
 }
 .thumb.satellite {
   background:

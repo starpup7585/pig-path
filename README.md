@@ -2,25 +2,21 @@
 
 A personal, Apple Maps–style navigation PWA with live traffic and an Explorer mode. Built for iPhone 16 Pro.
 
-## Current version: v0.7.1 — Authentic Apple Maps WA State Route Shields
-- **Pixel-Accurate Washington State Route Shields (`SR-524`, `SR-522`, `SR-520`, `SR-99`)**:
-  - Re-engineered to exactly match Apple Maps:
-    - 1:1 Square dark charcoal rounded container (`#2c2c2e` with `rx=18%`).
-    - Clean borderless badge with **NO outer white stroke**, exactly matching live Apple Maps cartography.
-    - Prominent solid white George Washington bust silhouette filling the container with balanced margins.
-    - High-contrast bold numerals positioned in the upper-middle of Washington's head in Apple SF Pro font, rendered in matching dark charcoal.
-- **Apple Maps Flyover 3D Cinematic Sweeps (from v0.7.0)**:
-  - Smooth orbital camera sweeps around destination landmarks at 60fps with authentic 3D terrain and building extrusions (`apple-3d-buildings`).
-  - Sinusoidal pitch oscillation (simulating an aircraft banking between 62° and 67°) with locked landmark center tracking.
-  - Floating frosted Flyover HUD capsule with landmark title, Dynamic Island clearance, and tactile 1-tap "Stop ✕" button.
-- **Multi-Stop Route Reordering (from v0.7.0)**:
-  - Reorderable waypoints list with 1-tap ▲ and ▼ buttons, native drag handles (`≡`), and touch dragging for iPhone 16 Pro.
-  - Numbered amber stop badges (`1`, `2`, `3`) with category emojis (`⚡`, `☕`, `🍔`, `🅿️`).
+## Current version: v0.7.2 — Apple Maps iOS 18 Vector Cartography
+- **Apple Maps iOS 18 Vector Cartography Engine (`applyAppleCartography` in `js/map.js`)**:
+  - Replaces default Mapbox road/land colors with authentic Apple Maps iOS 18 Day & Dark Mode vector styling:
+    - **Land & Commercial Zones**: Warm porcelain background (`#f5f4f0`) with warm sand-cream commercial/institutional zones (`#efe6d5`).
+    - **Parks & Woodlands**: Signature Apple Maps fresh pastel mint-sage green (`#bae8be` / `#c4ecc8`).
+    - **Water & Shorelines**: Pastel sky-azure water (`#92d3f7`) with crisp shoreline outline (`#80c4ec`).
+    - **Road Hierarchy**: Cool lavender-slate residential streets (`#cfd7e4`) that smoothly open into crisp white streets (`#ffffff`) with slate casings at close zoom, paired with Apple Maps' signature **steel-slate blue-gray freeways (`#95a4b8`)**, ramps (`#a4b2c5`), and stacked bridge overpasses.
+    - **Apple Maps Typography & Green Corridor Labels**: Tracked-out neighborhood labels with thick white halos, plus forest-green corridor/trail labels (`5 SnoCo`, `405 Express`, `520 Bridge`, `Burke-Gilman Trail`) in `#116e30` with crisp white halo.
+- **Refined Apple Maps Interstate Shield (`I-405`, `I-5`, `I-90`) & WA State Route Shields (`SR-520`, `SR-522`, `SR-524`)**:
+  - Wide rounded-bowl Interstate shield contour with vibrant `#007aff` Apple blue body, `#e3262e` crown, crisp straight horizontal white divider, and top-level collision priority.
 
 ## Roadmap
 | Version | Features |
 |---|---|
-| v0.7.1 (Current) | Authentic Apple Maps Washington State Route shields (borderless square badge, white George bust, dark centered numerals) |
+| v0.7.2 (Current) | Apple Maps iOS 18 Vector Cartography (steel-slate freeways, pastel mint parks, porcelain land, green corridor labels, wide-bowl Interstate shields) |
 | v0.8.0 | Live Weather radar & precipitation overlay, Mascot switcher (Pig 🐷 / Pitty 🐶) |
 | v1.0.0 | Offline map tile packs, multi-stop route optimization & haptic refinement |
 

@@ -78,51 +78,52 @@ export function generateWaShieldSvg(ref) {
 export function generateInterstateSvg(ref) {
   const cleanRef = String(ref).trim().replace(/^(I-?|Interstate\s*)/i, '');
   const is3 = cleanRef.length >= 3;
-  const w = is3 ? 680 : 600;
-  const h = 600;
-  const sX = is3 ? 680 / 600 : 1;
-  const fontSize = is3 ? 240 : 280;
-  const fontY = 370;
+  const w = is3 ? 680 : 590;
+  const h = 590;
+  const sX = w / 600;
+  const fontSize = is3 ? 254 : 292;
+  const fontY = 362;
   const fontX = w / 2;
-  const letterSpacing = is3 ? '-4' : '-1';
+  const letterSpacing = is3 ? '-6' : '-2';
 
-  const pOuter = `M ${80 * sX},38 ` +
-    `C ${125 * sX},58 ${165 * sX},66 ${200 * sX},66 ` +
-    `C ${235 * sX},66 ${268 * sX},56 ${300 * sX},42 ` +
-    `C ${332 * sX},56 ${368 * sX},66 ${400 * sX},66 ` +
-    `C ${435 * sX},66 ${475 * sX},58 ${520 * sX},38 ` +
-    `C ${568 * sX},94 ${588 * sX},170 ${588 * sX},245 ` +
-    `C ${588 * sX},410 ${462 * sX},542 ${300 * sX},570 ` +
-    `C ${138 * sX},542 ${12 * sX},410 ${12 * sX},245 ` +
-    `C ${12 * sX},170 ${32 * sX},94 ${80 * sX},38 Z`;
+  // Apple Maps wide rounded-bowl Interstate shield contour
+  const pOuter = `M ${84 * sX},40 ` +
+    `C ${130 * sX},58 ${168 * sX},64 ${202 * sX},64 ` +
+    `C ${236 * sX},64 ${268 * sX},55 ${300 * sX},44 ` +
+    `C ${332 * sX},55 ${364 * sX},64 ${398 * sX},64 ` +
+    `C ${432 * sX},64 ${470 * sX},58 ${516 * sX},40 ` +
+    `C ${568 * sX},92 ${590 * sX},162 ${590 * sX},235 ` +
+    `C ${590 * sX},432 ${472 * sX},562 ${300 * sX},566 ` +
+    `C ${128 * sX},562 ${10 * sX},432 ${10 * sX},235 ` +
+    `C ${10 * sX},162 ${32 * sX},92 ${84 * sX},40 Z`;
 
-  const pInner = `M ${88 * sX},54 ` +
-    `C ${130 * sX},72 ${168 * sX},78 ${200 * sX},78 ` +
-    `C ${232 * sX},78 ${265 * sX},69 ${300 * sX},57 ` +
-    `C ${335 * sX},69 ${368 * sX},78 ${400 * sX},78 ` +
-    `C ${432 * sX},78 ${470 * sX},72 ${512 * sX},54 ` +
-    `C ${552 * sX},104 ${570 * sX},175 ${570 * sX},245 ` +
-    `C ${570 * sX},396 ${450 * sX},522 ${300 * sX},548 ` +
-    `C ${150 * sX},522 ${30 * sX},396 ${30 * sX},245 ` +
-    `C ${30 * sX},175 ${48 * sX},104 ${88 * sX},54 Z`;
+  const pInner = `M ${94 * sX},58 ` +
+    `C ${136 * sX},74 ${170 * sX},80 ${202 * sX},80 ` +
+    `C ${234 * sX},80 ${266 * sX},72 ${300 * sX},62 ` +
+    `C ${334 * sX},72 ${366 * sX},80 ${398 * sX},80 ` +
+    `C ${430 * sX},80 ${464 * sX},74 ${506 * sX},58 ` +
+    `C ${550 * sX},104 ${570 * sX},168 ${570 * sX},235 ` +
+    `C ${570 * sX},416 ${458 * sX},540 ${300 * sX},544 ` +
+    `C ${142 * sX},540 ${30 * sX},416 ${30 * sX},235 ` +
+    `C ${30 * sX},168 ${50 * sX},104 ${94 * sX},58 Z`;
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">` +
     `<defs>` +
     `<filter id="appleShadow" x="-15%" y="-15%" width="130%" height="130%">` +
-    `<feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="rgba(0,0,0,0.35)"/>` +
+    `<feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="rgba(0,0,0,0.32)"/>` +
     `</filter>` +
     `<clipPath id="innerClip">` +
     `<path d="${pInner}"/>` +
     `</clipPath>` +
     `</defs>` +
-    `<!-- Outer White Border with Shadow -->` +
+    `<!-- Outer White Border with Apple Maps Soft Shadow -->` +
     `<path d="${pOuter}" fill="#ffffff" filter="url(#appleShadow)"/>` +
     `<!-- Clipped Shield Core -->` +
     `<g clip-path="url(#innerClip)">` +
-    `<rect x="0" y="0" width="${w}" height="180" fill="#e3262e"/>` +
-    `<path d="M 0,174 Q ${w / 2},186 ${w},174 L ${w},600 L 0,600 Z" fill="#0066d6"/>` +
-    `<path d="M 0,174 Q ${w / 2},186 ${w},174" fill="none" stroke="#ffffff" stroke-width="12"/>` +
+    `<rect x="0" y="0" width="${w}" height="168" fill="#e3262e"/>` +
+    `<rect x="0" y="168" width="${w}" height="${h - 168}" fill="#007aff"/>` +
+    `<line x1="0" y1="168" x2="${w}" y2="168" stroke="#ffffff" stroke-width="14"/>` +
     `</g>` +
     `<!-- Centered Bold Numerals in Apple SF Pro Display -->` +
     `<text x="${fontX}" y="${fontY}" dominant-baseline="central" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="${fontSize}" text-anchor="middle" fill="#ffffff" letter-spacing="${letterSpacing}">${cleanRef}</text>` +
@@ -245,8 +246,8 @@ function svgToImage(svg, w, h) {
  */
 export function createWaShieldImage(ref) {
   const cleanRef = String(ref).trim().replace(/^(SR-?|WA-?)\s*/i, '');
-  const w = 78;
-  const h = 78;
+  const w = 88;
+  const h = 88;
   const svg = generateWaShieldSvg(cleanRef);
   return svgToImage(svg, w, h);
 }
@@ -258,8 +259,8 @@ export function createWaShieldImage(ref) {
 export function createInterstateShieldImage(ref) {
   const cleanRef = String(ref).trim().replace(/^(I-?|Interstate\s*)/i, '');
   const is3 = cleanRef.length >= 3;
-  const w = is3 ? 94 : 84;
-  const h = 84;
+  const w = is3 ? 112 : 98;
+  const h = 98;
   const svg = generateInterstateSvg(cleanRef);
   return svgToImage(svg, w, h);
 }
@@ -270,8 +271,8 @@ export function createInterstateShieldImage(ref) {
 export function createUsHighwayShieldImage(ref) {
   const cleanRef = String(ref).trim().replace(/^(US|U\.S\.)\s*/i, '');
   const is3 = cleanRef.length >= 3;
-  const w = is3 ? 88 : 78;
-  const h = 78;
+  const w = is3 ? 98 : 88;
+  const h = 88;
   const svg = generateUsHighwaySvg(cleanRef);
   return svgToImage(svg, w, h);
 }
